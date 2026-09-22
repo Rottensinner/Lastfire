@@ -17,9 +17,7 @@ import {
   freeWorkers,
   maxWorkers,
   workersIn,
-  upgradeCost,
   canPay,
-  queueBuild,
   cancelBuild,
   moveBuild,
   assignBuilder,
@@ -50,7 +48,7 @@ import CostList from "./components/CostList.vue";
 import DiscoveryTree from "./components/DiscoveryTree.vue";
 import SettlementProgressPanel from "./components/SettlementProgressPanel.vue";
 import CivicSafetyPanel from "./components/CivicSafetyPanel.vue";
-import BuildingDevelopmentPanel from "./components/BuildingDevelopmentPanel.vue";
+import { stagedUpgradeCost, canQueueStagedUpgrade, queueStagedUpgrade, nextBuildingStage, buildingUpgradeRequirements } from "./buildingProgression";
 const { game, notice, save, reset, download, restore } = useGame();
 const tab = ref("Osada"),
   selected = ref("gatherers"),
@@ -60,7 +58,7 @@ const tab = ref("Osada"),
   pack = ref(false),
   tools = ref(false),
   resourceSearch = ref("");
-const tabs = ["Osada", "Odkrycia", "Wyprawy", "Handel", "Wydarzenia", "Region", "Bezpieczeństwo", "Rozbudowa"];
+const tabs = ["Osada", "Odkrycia", "Wyprawy", "Handel", "Wydarzenia", "Region", "Bezpieczeństwo"];
 const def = computed(() => buildings.find((b) => b.id === selected.value)!);
 const current = computed(() => game.buildings[selected.value]);
 const node = computed(() => researches.find((r) => r.id === discovery.value)!);
@@ -617,7 +615,6 @@ const visibleRoutes = computed(() =>
         >
       <div v-show="tab === 'Region'"><SettlementProgressPanel embedded /></div>
         <div v-show="tab === 'Bezpieczeństwo'"><CivicSafetyPanel embedded /></div>
-        <div v-show="tab === 'Rozbudowa'"><BuildingDevelopmentPanel embedded /></div>
       </main>
       <aside v-show="['Osada', 'Odkrycia'].includes(tab)" class="panel detail-panel" aria-label="Szczegóły wyboru">
         <template v-if="tab === 'Odkrycia'"
@@ -711,6 +708,20 @@ const visibleRoutes = computed(() =>
               <p>{{ def.description }}</p>
             </div>
           </div>
+          <section class="upgrade-section building-action">
+            <h2>{{ current.level >= 20 ? 'Maksymalny poziom' : current.level ? 'Rozbudowa do poziomu ' + (current.level + 1) : 'Budowa' }}</h2>
+            <template v-if="current.level < 20">
+              <p class="positive">{{ nextBuildingStage(game, def.id)?.name }}</p>
+              <CostList :cost="stagedUpgradeCost(game, def.id)" :stock="game.resources" />
+              <ul class="build-requirements">
+                <li v-for="row in buildingUpgradeRequirements(game, def.id)" :key="row.label" :class="{ positive: row.met }">{{ row.met ? '✓' : '◇' }} {{ row.label }}</li>
+              </ul>
+              <button class="primary full" :disabled="!canQueueStagedUpgrade(game, def.id)" @click="act(queueStagedUpgrade(game, def.id)); tab = 'Osada'">
+                {{ game.buildQueue.some(q => q.id === def.id) ? 'W kolejce budowy' : current.level ? 'Rozbuduj — dodaj do kolejki' : 'Zbuduj — dodaj do kolejki' }}
+              </button>
+              <p class="muted">{{ game.buildQueue.length >= 5 ? 'Kolejka budowy jest pełna.' : 'Materiały zostaną pobrane po kliknięciu. Przydziel budowniczych w panelu osady.' }}</p>
+            </template>
+          </section>
           <template v-if="current.level && def.recipes.length"
             ><div class="workforce-total">
               <span
@@ -830,41 +841,7 @@ const visibleRoutes = computed(() =>
               }}
             </p>
           </div>
-          <section class="upgrade-section">
-            <h2>
-              {{
-                current.level
-                  ? `Rozbudowa do poziomu ${current.level + 1}`
-                  : "Budowa"
-              }}
-            </h2>
-            <CostList
-              :cost="upgradeCost(game, def.id)"
-              :stock="game.resources"
-            /><button
-              class="primary full"
-              :disabled="
-                !canPay(game, upgradeCost(game, def.id)) ||
-                game.buildQueue.some((q) => q.id === def.id) ||
-                game.buildQueue.length >= 5 ||
-                current.level >= 20
-              "
-              @click="
-                act(queueBuild(game, def.id));
-                tab = 'Osada';
-              "
-            >
-              {{
-                game.buildQueue.some((q) => q.id === def.id)
-                  ? "W kolejce budowy"
-                  : "Dodaj do kolejki"
-              }}
-            </button>
-            <p class="muted">
-              Materiały zostają pobrane teraz. Przydziel budowniczych w panelu
-              osady.
-            </p>
-          </section></template
+</template
         >
       </aside>
     </div>

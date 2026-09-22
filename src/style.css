@@ -1811,3 +1811,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
  .game-shell .embedded .bp-stage-track { grid-template-columns:1fr; }
  .game-shell .embedded .bp-building-title { grid-template-columns:48px minmax(0,1fr) auto; }
 }
+
+/* Budowa zawsze przy wybranym budynku. */
+.detail-panel .building-action { display:block; margin:18px 0 24px; padding:16px 0; }
+.build-requirements { list-style:none; padding:0; margin:12px 0; font-size:12px; }
+.build-requirements li { margin:6px 0; }
