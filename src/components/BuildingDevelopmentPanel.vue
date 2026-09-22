@@ -17,6 +17,7 @@ import CostList from "./CostList.vue";
 
 const { game, notice, save } = useGame();
 const open = ref(false);
+defineProps<{ embedded?: boolean }>();
 const selected = ref("gatherers");
 
 const groups = [...new Set(buildings.map((building) => building.group))];
@@ -43,7 +44,7 @@ function upgrade() {
 </script>
 
 <template>
-  <button class="building-progress-trigger" @click="open = !open">
+  <button v-if="!embedded" class="building-progress-trigger" @click="open = !open">
     <PixelIcon name="house" :size="28" />
     <span>
       <small>ROZWÓJ BUDYNKÓW</small>
@@ -52,14 +53,14 @@ function upgrade() {
     <b>{{ open ? "×" : "▲" }}</b>
   </button>
 
-  <aside v-if="open" class="building-progress-panel" aria-label="Rozwój budynków">
+  <aside v-if="embedded || open" :class="['building-progress-panel', { embedded }]" aria-label="Rozwój budynków">
     <header class="bp-header">
       <div>
         <small>INFRASTRUKTURA</small>
         <h2>Rozwój budynków</h2>
         <p>Każdy próg poziomów zmienia materiały, wymagania i charakter budynku.</p>
       </div>
-      <button class="bp-close" @click="open = false">×</button>
+      <button v-if="!embedded" class="bp-close" @click="open = false">×</button>
     </header>
 
     <div class="bp-layout">

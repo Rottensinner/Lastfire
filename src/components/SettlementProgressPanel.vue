@@ -25,6 +25,7 @@ import CostList from "./CostList.vue";
 
 const { game, notice, save } = useGame();
 const open = ref(false);
+defineProps<{ embedded?: boolean }>();
 const section = ref<"progress" | "region">("progress");
 const selectedSpecialization = ref("farming");
 const renaming = ref<string | null>(null);
@@ -92,7 +93,7 @@ function collect() {
 </script>
 
 <template>
-  <button class="progress-trigger" @click="open = !open">
+  <button v-if="!embedded" class="progress-trigger" @click="open = !open">
     <span class="flame">◆</span>
     <span>
       <small>ROZWÓJ OSADY</small>
@@ -101,14 +102,14 @@ function collect() {
     <span class="chevron">{{ open ? "×" : "▲" }}</span>
   </button>
 
-  <aside v-if="open" class="progress-panel" aria-label="Rozwój osady i regionu">
+  <aside v-if="embedded || open" :class="['progress-panel', { embedded }]" aria-label="Rozwój osady i regionu">
     <header>
       <div>
         <small>OBECNY POZIOM</small>
         <h2>{{ currentTier.name }}</h2>
         <p>{{ currentTier.shortDescription }}</p>
       </div>
-      <button class="close" aria-label="Zamknij" @click="open = false">×</button>
+      <button v-if="!embedded" class="close" aria-label="Zamknij" @click="open = false">×</button>
     </header>
 
     <nav class="panel-tabs">

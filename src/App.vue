@@ -48,6 +48,9 @@ import { useGame } from "./useGame";
 import PixelIcon from "./components/PixelIcon.vue";
 import CostList from "./components/CostList.vue";
 import DiscoveryTree from "./components/DiscoveryTree.vue";
+import SettlementProgressPanel from "./components/SettlementProgressPanel.vue";
+import CivicSafetyPanel from "./components/CivicSafetyPanel.vue";
+import BuildingDevelopmentPanel from "./components/BuildingDevelopmentPanel.vue";
 const { game, notice, save, reset, download, restore } = useGame();
 const tab = ref("Osada"),
   selected = ref("gatherers"),
@@ -57,7 +60,7 @@ const tab = ref("Osada"),
   pack = ref(false),
   tools = ref(false),
   resourceSearch = ref("");
-const tabs = ["Osada", "Odkrycia", "Wyprawy", "Handel", "Wydarzenia"];
+const tabs = ["Osada", "Odkrycia", "Wyprawy", "Handel", "Wydarzenia", "Region", "Bezpieczeństwo", "Rozbudowa"];
 const def = computed(() => buildings.find((b) => b.id === selected.value)!);
 const current = computed(() => game.buildings[selected.value]);
 const node = computed(() => researches.find((r) => r.id === discovery.value)!);
@@ -148,6 +151,7 @@ const visibleRoutes = computed(() =>
 </script>
 <template>
   <div class="game-shell">
+    <a class="skip-link" href="#main-content">Przejdź do widoku gry</a>
     <header class="topbar">
       <a class="brand" href="#" @click.prevent="tab = 'Osada'"
         ><PixelIcon name="fire" :size="42" /><span
@@ -159,6 +163,7 @@ const visibleRoutes = computed(() =>
           v-for="t in tabs"
           :key="t"
           :class="{ active: tab === t }"
+          :aria-current="tab === t ? 'page' : undefined"
           @click="tab = t"
         >
           {{ t
@@ -181,7 +186,7 @@ const visibleRoutes = computed(() =>
       <span>{{ notice }}</span
       ><button aria-label="Zamknij komunikat" @click="notice = ''">×</button>
     </div>
-    <div class="layout">
+    <div class="layout" :class="{ 'wide-view': !['Osada', 'Odkrycia'].includes(tab) }">
       <aside class="panel resources-panel">
         <div class="panel-heading">
           <h1>ZASOBY</h1>
@@ -247,7 +252,7 @@ const visibleRoutes = computed(() =>
           /></label>
         </details>
       </aside>
-      <main class="panel main-panel">
+      <main class="panel main-panel" id="main-content" tabindex="-1">
         <div class="panel-heading main-heading">
           <h1>{{ tab.toUpperCase() }}</h1>
           <div class="population">
@@ -610,8 +615,11 @@ const visibleRoutes = computed(() =>
             </article></template
           ></template
         >
+      <div v-show="tab === 'Region'"><SettlementProgressPanel embedded /></div>
+        <div v-show="tab === 'Bezpieczeństwo'"><CivicSafetyPanel embedded /></div>
+        <div v-show="tab === 'Rozbudowa'"><BuildingDevelopmentPanel embedded /></div>
       </main>
-      <aside class="panel detail-panel" aria-label="Szczegóły wyboru">
+      <aside v-show="['Osada', 'Odkrycia'].includes(tab)" class="panel detail-panel" aria-label="Szczegóły wyboru">
         <template v-if="tab === 'Odkrycia'"
           ><div class="panel-heading">
             <h1>{{ node.name.toUpperCase() }}</h1>
