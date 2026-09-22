@@ -3,6 +3,7 @@ import { marketGoods, orders, resources, resourceName } from "../data";
 import {
   buyPrice,
   canPay,
+  capacity,
   fulfillOrder,
   has,
   trade,
@@ -60,7 +61,7 @@ function act(ok: boolean) {
           :disabled="
             game.resources.gold < buyPrice(game, item.id) * 5 ||
             game.market[item.id] < 5 ||
-            game.resources[item.id] + 5 > 1_000_000
+            game.resources[item.id] + 5 > capacity(game)
           "
           @click="act(trade(game, item.id, 'buy', 5))"
         >
