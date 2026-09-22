@@ -3,15 +3,15 @@ import {
   freshGame,
   parseSave,
   advance,
-  MAX_OFFLINE,
   log,
-  type ProgressionGameState,
-} from "./progression";
+  type CivicGameState,
+} from "./civic";
+import { MAX_OFFLINE } from "./progression";
 
 const KEY = "ostatnie-ognisko-v2";
 
 type GameController = {
-  game: ProgressionGameState;
+  game: CivicGameState;
   notice: Ref<string>;
   save: () => boolean;
   reset: () => void;
@@ -43,7 +43,7 @@ export function useGame(): GameController {
     notice.value = "Nie udało się odczytać zapisu. Rozpoczęto nową osadę.";
   }
 
-  const game = reactive(initial) as ProgressionGameState;
+  const game = reactive(initial) as CivicGameState;
   let last = Date.now();
   let timer: ReturnType<typeof setInterval>;
   let saves = 0;
