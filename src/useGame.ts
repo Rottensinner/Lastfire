@@ -1,5 +1,11 @@
 import { reactive, ref, onMounted, onUnmounted } from "vue";
-import { freshGame, parseSave, advance, MAX_OFFLINE, log } from "./engine";
+import {
+  freshGame,
+  parseSave,
+  advance,
+  MAX_OFFLINE,
+  log,
+} from "./progression";
 const KEY = "ostatnie-ognisko-v2";
 export function useGame() {
   const notice = ref("");
