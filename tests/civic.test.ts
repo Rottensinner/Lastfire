@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   advance,
+  civicEventTemplate,
   civicPressure,
   civicServiceUnlocked,
   eventChoiceAvailable,
@@ -68,8 +69,7 @@ test("wysoka przestępczość może wygenerować powstanie gangu", () => {
   assert.ok(generateCivicEvent(s));
   const event = s.civicEvents[0];
   assert.equal(event.templateId, "gang-formation");
-  const choice = "ignore";
-  assert.ok(resolveCivicEvent(s, event.id, choice));
+  assert.ok(resolveCivicEvent(s, event.id, "ignore"));
   assert.equal(s.gangs.length, 1);
   assert.ok(s.gangs[0].power >= 20);
 });
@@ -85,7 +85,7 @@ test("silne służby umożliwiają prewencyjne rozbicie tworzącej się grupy", 
   generateCivicEvent(s);
   const event = s.civicEvents[0];
   assert.equal(event.templateId, "gang-formation");
-  const template = (await import("../src/civic")).civicEventTemplate(event.templateId);
+  const template = civicEventTemplate(event.templateId);
   const prevent = template.choices.find((choice) => choice.id === "prevent")!;
   assert.ok(eventChoiceAvailable(s, event, prevent));
   assert.ok(resolveCivicEvent(s, event.id, "prevent"));
