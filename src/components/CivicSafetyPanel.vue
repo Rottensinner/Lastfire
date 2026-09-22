@@ -21,6 +21,7 @@ import PixelIcon from "./PixelIcon.vue";
 
 const { game, notice, save } = useGame();
 const open = ref(false);
+defineProps<{ embedded?: boolean }>();
 const tab = ref<"status" | "services" | "events" | "gangs">("status");
 
 const summary = computed(() => civicSummary(game));
@@ -65,7 +66,7 @@ function meterClass(value: number, reversed = false) {
 </script>
 
 <template>
-  <button class="civic-trigger" @click="open = !open">
+  <button v-if="!embedded" class="civic-trigger" @click="open = !open">
     <span class="shield">◇</span>
     <span>
       <small>PORZĄDEK PUBLICZNY</small>
@@ -75,7 +76,7 @@ function meterClass(value: number, reversed = false) {
     <span class="chevron">{{ open ? "×" : "▲" }}</span>
   </button>
 
-  <aside v-if="open" class="civic-panel" aria-label="Porządek publiczny i bezpieczeństwo">
+  <aside v-if="embedded || open" :class="['civic-panel', { embedded }]" aria-label="Porządek publiczny i bezpieczeństwo">
     <header>
       <div>
         <small>{{ tier.name.toUpperCase() }}</small>
@@ -85,7 +86,7 @@ function meterClass(value: number, reversed = false) {
           Inwestuj w służby, zanim przestępczość utrwali się w postaci gangów.
         </p>
       </div>
-      <button class="close" aria-label="Zamknij" @click="open = false">×</button>
+      <button v-if="!embedded" class="close" aria-label="Zamknij" @click="open = false">×</button>
     </header>
 
     <nav class="civic-tabs">
