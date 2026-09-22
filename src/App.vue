@@ -9,13 +9,13 @@ import ResourceSidebar from "./components/ResourceSidebar.vue";
 import DiscoveryTree from "./components/DiscoveryTree.vue";
 import DiscoveryDetails from "./components/DiscoveryDetails.vue";
 import BuildingInspector from "./components/BuildingInspector.vue";
-import SettlementProgressPanel from "./components/SettlementProgressPanel.vue";
 import CivicSafetyPanel from "./components/CivicSafetyPanel.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import SettlementView from "./views/SettlementView.vue";
 import EventsView from "./views/EventsView.vue";
 import ExpeditionsView from "./views/ExpeditionsView.vue";
 import TradeView from "./views/TradeView.vue";
+import RegionView from "./views/RegionView.vue";
 
 const { game, notice } = useGame();
 const tab = ref("Osada");
@@ -148,10 +148,7 @@ function resetUi() {
         <ExpeditionsView v-else-if="tab === 'Wyprawy'" />
         <TradeView v-else-if="tab === 'Handel'" />
         <EventsView v-else-if="tab === 'Wydarzenia'" />
-
-        <div v-else-if="tab === 'Region'" class="embedded-system-view">
-          <SettlementProgressPanel embedded />
-        </div>
+        <RegionView v-else-if="tab === 'Region'" />
 
         <div v-else-if="tab === 'Bezpieczeństwo'" class="embedded-system-view">
           <CivicSafetyPanel embedded />
