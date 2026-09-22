@@ -21,7 +21,7 @@ function richTown() {
   s.settlementTier = "small-town";
   s.population = 80;
   s.buildings.shelter.level = 30;
-  s.researched.push("trade");
+  s.researched.push("shelters", "trade");
   for (const resource of resources) s.resources[resource.id] = 10_000;
   return s;
 }
@@ -65,7 +65,7 @@ test("wysoka przestępczość może wygenerować powstanie gangu", () => {
   s.crime = 31;
   s.order = 90;
   s.fireRisk = 0;
-  s.nextCivicEventId = 2;
+  s.nextCivicEventId = 3;
   assert.ok(generateCivicEvent(s));
   const event = s.civicEvents[0];
   assert.equal(event.templateId, "gang-formation");
@@ -81,7 +81,7 @@ test("silne służby umożliwiają prewencyjne rozbicie tworzącej się grupy", 
   s.crime = 31;
   s.order = 90;
   s.fireRisk = 0;
-  s.nextCivicEventId = 2;
+  s.nextCivicEventId = 3;
   generateCivicEvent(s);
   const event = s.civicEvents[0];
   assert.equal(event.templateId, "gang-formation");
@@ -114,7 +114,7 @@ test("stan miejski zapisuje się razem z dotychczasową osadą", () => {
   s.services.police.level = 1;
   s.crime = 37;
   s.order = 58;
-  s.nextCivicEventId = 2;
+  s.nextCivicEventId = 3;
   generateCivicEvent(s);
   const restored = parseSave(JSON.stringify(s));
   assert.deepEqual(restored, s);
