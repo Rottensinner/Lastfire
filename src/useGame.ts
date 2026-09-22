@@ -1,13 +1,29 @@
-import { reactive, ref, onMounted, onUnmounted } from "vue";
+import { reactive, ref, onMounted, onUnmounted, type Ref } from "vue";
 import {
   freshGame,
   parseSave,
   advance,
   MAX_OFFLINE,
   log,
+  type ProgressionGameState,
 } from "./progression";
+
 const KEY = "ostatnie-ognisko-v2";
-export function useGame() {
+
+type GameController = {
+  game: ProgressionGameState;
+  notice: Ref<string>;
+  save: () => boolean;
+  reset: () => void;
+  download: () => void;
+  restore: (file: File) => Promise<void>;
+};
+
+let shared: GameController | null = null;
+
+export function useGame(): GameController {
+  if (shared) return shared;
+
   const notice = ref("");
   let initial = freshGame();
   try {
@@ -26,10 +42,12 @@ export function useGame() {
   } catch {
     notice.value = "Nie udało się odczytać zapisu. Rozpoczęto nową osadę.";
   }
-  const game = reactive(initial);
+
+  const game = reactive(initial) as ProgressionGameState;
   let last = Date.now();
   let timer: ReturnType<typeof setInterval>;
   let saves = 0;
+
   function save() {
     try {
       game.savedAt = Date.now();
@@ -41,33 +59,39 @@ export function useGame() {
       return false;
     }
   }
+
   function sync() {
     const now = Date.now();
     advance(game, Math.max(0, (now - last) / 1000));
     last = now;
     if (++saves % 15 === 0) save();
   }
+
   function hide() {
     sync();
     save();
   }
+
   onMounted(() => {
     timer = setInterval(sync, 1000);
     window.addEventListener("pagehide", hide);
     document.addEventListener("visibilitychange", hide);
   });
+
   onUnmounted(() => {
     clearInterval(timer);
     save();
     window.removeEventListener("pagehide", hide);
     document.removeEventListener("visibilitychange", hide);
   });
+
   function reset() {
     Object.assign(game, freshGame());
     last = Date.now();
     save();
     notice.value = "Nowe ognisko zapłonęło.";
   }
+
   function download() {
     save();
     const url = URL.createObjectURL(
@@ -79,6 +103,7 @@ export function useGame() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
   async function restore(file: File) {
     try {
       if (file.size > 1000000) throw new Error("Plik jest zbyt duży.");
@@ -94,5 +119,7 @@ export function useGame() {
         "Nieprawidłowy plik zapisu. Twoja osada pozostała bez zmian.";
     }
   }
-  return { game, notice, save, reset, download, restore };
+
+  shared = { game, notice, save, reset, download, restore };
+  return shared;
 }
