@@ -50,7 +50,6 @@ import CostList from "./components/CostList.vue";
 import DiscoveryTree from "./components/DiscoveryTree.vue";
 import SettlementProgressPanel from "./components/SettlementProgressPanel.vue";
 import CivicSafetyPanel from "./components/CivicSafetyPanel.vue";
-import BuildingDevelopmentPanel from "./components/BuildingDevelopmentPanel.vue";
 const { game, notice, save, reset, download, restore } = useGame();
 const tab = ref("Osada"),
   selected = ref("gatherers"),
@@ -60,7 +59,7 @@ const tab = ref("Osada"),
   pack = ref(false),
   tools = ref(false),
   resourceSearch = ref("");
-const tabs = ["Osada", "Odkrycia", "Wyprawy", "Handel", "Wydarzenia", "Region", "Bezpieczeństwo", "Rozbudowa"];
+const tabs = ["Osada", "Odkrycia", "Wyprawy", "Handel", "Wydarzenia", "Region", "Bezpieczeństwo"];
 const def = computed(() => buildings.find((b) => b.id === selected.value)!);
 const current = computed(() => game.buildings[selected.value]);
 const node = computed(() => researches.find((r) => r.id === discovery.value)!);
@@ -617,7 +616,6 @@ const visibleRoutes = computed(() =>
         >
       <div v-show="tab === 'Region'"><SettlementProgressPanel embedded /></div>
         <div v-show="tab === 'Bezpieczeństwo'"><CivicSafetyPanel embedded /></div>
-        <div v-show="tab === 'Rozbudowa'"><BuildingDevelopmentPanel embedded /></div>
       </main>
       <aside v-show="['Osada', 'Odkrycia'].includes(tab)" class="panel detail-panel" aria-label="Szczegóły wyboru">
         <template v-if="tab === 'Odkrycia'"
