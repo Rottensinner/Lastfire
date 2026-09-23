@@ -3,7 +3,6 @@ import { computed, ref, watch } from "vue";
 import { buildings, resources, resourceName } from "../data";
 import {
   assign,
-  capacity,
   effectiveWorkers,
   equipBest,
   freeWorkers,
@@ -18,7 +17,6 @@ import {
 import {
   buildingUpgradeRequirements,
   canQueueStagedUpgrade,
-  currentBuildingStage,
   developmentFor,
   nextBuildingStage,
   queueStagedUpgrade,
@@ -27,6 +25,7 @@ import {
 import { settlementTiers } from "../progression";
 import type { Recipe } from "../types";
 import { useGame } from "../useGame";
+import BuildingOverviewTab from "./BuildingOverviewTab.vue";
 import CostList from "./CostList.vue";
 import PixelIcon from "./PixelIcon.vue";
 
@@ -37,7 +36,6 @@ const section = ref<"overview" | "production" | "development">("overview");
 const building = computed(() => buildings.find((item) => item.id === props.buildingId)!);
 const state = computed(() => game.buildings[props.buildingId]);
 const development = computed(() => developmentFor(props.buildingId));
-const currentStage = computed(() => currentBuildingStage(game, props.buildingId));
 const nextStage = computed(() => nextBuildingStage(game, props.buildingId));
 const nextCost = computed(() => stagedUpgradeCost(game, props.buildingId));
 const requirements = computed(() => buildingUpgradeRequirements(game, props.buildingId));
@@ -90,7 +88,7 @@ function upgrade() {
         <PixelIcon :name="building.icon" :size="66" />
         <div>
           <small>{{ building.group }}</small>
-          <h1>{{ building.name }}</h1>
+          <h1>{{ building.name.toUpperCase() }}</h1>
           <p>{{ building.description }}</p>
         </div>
       </div>
@@ -112,57 +110,12 @@ function upgrade() {
       <button :class="{ active: section === 'development' }" @click="section = 'development'">Rozwój</button>
     </nav>
 
-    <section v-if="section === 'overview'" class="inspector-section">
-      <div class="building-stage-card">
-        <small>ETAP KONSTRUKCYJNY</small>
-        <strong>{{ currentStage?.name ?? "Brak" }}</strong>
-        <p>{{ currentStage?.description }}</p>
-        <span v-if="currentStage">Poziomy {{ currentStage.fromLevel }}–{{ currentStage.toLevel }}</span>
-      </div>
-
-      <div class="building-metrics">
-        <div>
-          <small>STAN</small>
-          <strong>{{ state.level ? "Aktywny" : "Do wybudowania" }}</strong>
-        </div>
-        <div>
-          <small>PRACOWNICY</small>
-          <strong>{{ workersIn(game, building.id) }} / {{ maxWorkers(game, building.id) }}</strong>
-        </div>
-        <div>
-          <small>PREMIA</small>
-          <strong>+{{ Math.round((multiplier(game, building.id) - 1) * 100) }}%</strong>
-        </div>
-      </div>
-
-      <div v-if="state.level && !visibleRecipes.length" class="building-passive-card">
-        <template v-if="building.housing">
-          <small>MIESZKANIA</small>
-          <strong>{{ state.level * building.housing }} miejsc</strong>
-          <p>Każdy poziom zwiększa pojemność mieszkalną tego typu zabudowy.</p>
-        </template>
-        <template v-else-if="building.id === 'warehouse'">
-          <small>MAGAZYNOWANIE</small>
-          <strong>{{ capacity(game) }} jednostek / zasób</strong>
-          <p>Rozbudowa zwiększa globalny limit magazynowania.</p>
-        </template>
-        <template v-else-if="building.id === 'fire'">
-          <small>WSPÓLNOTA</small>
-          <strong>+{{ Math.max(0, state.level - 1) * 5 }}%</strong>
-          <p>Palenisko wzmacnia organizację pracy i staje się centrum rosnącej osady.</p>
-        </template>
-        <template v-else>
-          <small>FUNKCJA</small>
-          <strong>Budynek pomocniczy</strong>
-          <p>Jego główne efekty są związane z innymi systemami gry.</p>
-        </template>
-      </div>
-
-      <div class="building-overview-actions">
-        <button v-if="visibleRecipes.length" @click="section = 'production'">Zarządzaj produkcją</button>
-        <button class="primary" @click="section = 'development'">Pokaż rozwój budynku</button>
-      </div>
-    </section>
+    <BuildingOverviewTab
+      v-if="section === 'overview'"
+      :building-id="building.id"
+      @production="section = 'production'"
+      @development="section = 'development'"
+    />
 
     <section v-else-if="section === 'production'" class="inspector-section production-section">
       <div v-if="state.level" class="production-summary">
@@ -325,9 +278,6 @@ function upgrade() {
 .building-inspector-title { display: grid; grid-template-columns: 70px 1fr; gap: 11px; align-items: center; }
 .building-inspector-title small,
 .building-level-badge small,
-.building-stage-card small,
-.building-metrics small,
-.building-passive-card small,
 .inspector-job-controls small,
 .next-development-heading small {
   display: block;
@@ -348,39 +298,34 @@ function upgrade() {
 .building-inspector-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  margin: 12px 0;
+  margin: 13px 0 9px;
   border: 1px solid #404534;
 }
 .building-inspector-tabs button {
-  min-height: 34px;
+  min-height: 38px;
   border: 0;
   border-right: 1px solid #404534;
   border-radius: 0;
-  background: #151a14;
-  color: #9b9d88;
+  background: #111812;
+  color: #a6a891;
   font-size: 11px;
 }
 .building-inspector-tabs button:last-child { border-right: 0; }
-.building-inspector-tabs button.active { background: #323922; color: #e9ddaa; box-shadow: inset 0 -2px #969d4f; }
-.inspector-section { min-width: 0; }
-.building-stage-card,
-.building-passive-card,
-.next-development-card {
-  padding: 11px;
-  border: 1px solid #444433;
-  background: #171b14;
+.building-inspector-tabs button.active {
+  background: #323922;
+  color: #efe2a9;
+  box-shadow: inset 0 -2px #b3aa4e;
 }
-.building-stage-card strong,
-.building-passive-card strong { display: block; margin: 3px 0; color: #e1d7b9; }
-.building-stage-card p,
-.building-passive-card p,
-.next-development-card > p { margin: 0; color: #979985; font-size: 11px; line-height: 1.45; }
-.building-stage-card > span { color: #b6a661; font-size: 10px; }
-.building-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
-.building-metrics > div { padding: 8px; border: 1px solid #373d2f; background: #121712; }
-.building-metrics strong { display: block; margin-top: 3px; color: #d9d4ba; font-size: 12px; }
-.building-overview-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
-.production-summary { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid #3b4131; background: #151a14; font-size: 10px; }
+.inspector-section { min-width: 0; }
+.production-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #3b4131;
+  background: #151a14;
+  font-size: 10px;
+}
 .production-summary b { color: #cdd8a6; }
 .inspector-auto-equip { display: block; margin: 9px 0; font-size: 10px; }
 .inspector-job-card { margin-top: 8px; padding: 10px; border: 1px solid #3d4333; background: #151a14; }
@@ -393,7 +338,13 @@ function upgrade() {
 .inspector-output strong { display: block; margin-top: 4px; color: #a8d785; font-size: 10px; }
 .inspector-job-card details { margin-top: 8px; border-top: 1px solid #34392d; padding-top: 7px; }
 .inspector-job-card summary { color: #aaa88f; font-size: 10px; cursor: pointer; }
-.development-roadmap { display: grid; grid-template-columns: repeat(5, minmax(95px, 1fr)); gap: 5px; overflow-x: auto; padding-bottom: 7px; }
+.development-roadmap {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(95px, 1fr));
+  gap: 5px;
+  overflow-x: auto;
+  padding: 8px 0;
+}
 .development-roadmap article {
   position: relative;
   min-width: 95px;
@@ -403,12 +354,27 @@ function upgrade() {
   opacity: .58;
   text-align: center;
 }
-.development-roadmap article.current { border-color: #8d8248; background: #262a18; opacity: 1; }
-.development-roadmap article.completed { border-color: #44513d; opacity: .82; }
+.development-roadmap article:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -6px;
+  width: 6px;
+  height: 1px;
+  background: #676b3f;
+}
+.development-roadmap article.current { border-color: #b0a14c; background: #282d19; opacity: 1; }
+.development-roadmap article.completed { border-color: #52654a; opacity: .9; }
 .stage-range { display: block; margin-bottom: 5px; color: #a68b55; font-size: 9px; }
 .development-roadmap strong { display: block; margin-top: 4px; color: #d7d1b7; font-size: 9px; }
 .development-roadmap small { display: block; margin-top: 3px; color: #777b69; font-size: 8px; }
-.next-development-card { margin-top: 9px; }
+.next-development-card {
+  margin-top: 9px;
+  padding: 12px;
+  border: 1px solid #444433;
+  background: #171b14;
+}
+.next-development-card > p { margin: 0; color: #979985; font-size: 11px; line-height: 1.45; }
 .next-development-heading { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
 .next-development-heading h2 { margin: 3px 0 5px; font-size: 13px; }
 .next-development-heading > span { padding: 3px 6px; border: 1px solid #555334; color: #bca85f; font-size: 9px; }
@@ -421,8 +387,6 @@ function upgrade() {
 .inspector-empty { padding: 14px; border: 1px dashed #464a37; color: #8b8e79; font-size: 10px; }
 @media (max-width: 1050px) {
   .building-inspector-title { grid-template-columns: 54px 1fr; }
-  .building-inspector-title .pixel-icon { width: 54px; height: 54px; }
   .building-level-badge { min-width: 48px; }
-  .building-metrics { grid-template-columns: 1fr; }
 }
 </style>
