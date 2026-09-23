@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { freeWorkers, housing } from "../engine";
 import { useGame } from "../useGame";
 import {
   advanceSettlement,
   canAdvanceSettlement,
   currentSettlementTier,
   nextSettlementTier,
+  settlementTiers,
   tierRequirementRows,
 } from "../progression";
 import CostList from "./CostList.vue";
@@ -21,6 +23,30 @@ const completed = computed(() => requirements.value.filter((row) => row.met).len
 const progress = computed(() =>
   requirements.value.length ? (completed.value / requirements.value.length) * 100 : 100,
 );
+const tierIndex = computed(() => Math.max(0, settlementTiers.findIndex((tier) => tier.id === current.value.id)));
+const tierNumber = computed(() => tierIndex.value + 1);
+const tierRoman = computed(() => roman(tierNumber.value));
+const settlementIcon = computed(() => (tierIndex.value <= 1 ? "fire" : "house"));
+const previewRequirements = computed(() => requirements.value.slice(0, 5));
+
+function roman(value: number) {
+  const entries: Array<[number, string]> = [
+    [10, "X"],
+    [9, "IX"],
+    [5, "V"],
+    [4, "IV"],
+    [1, "I"],
+  ];
+  let remaining = value;
+  let result = "";
+  for (const [number, symbol] of entries) {
+    while (remaining >= number) {
+      result += symbol;
+      remaining -= number;
+    }
+  }
+  return result;
+}
 
 function promote() {
   if (!advanceSettlement(game)) {
@@ -34,41 +60,63 @@ function promote() {
 </script>
 
 <template>
-  <section class="settlement-status-card">
-    <div class="settlement-status-main">
-      <div class="settlement-status-icon">
-        <PixelIcon name="fire" :size="36" />
+  <section class="settlement-status-card settlement-overview-card">
+    <div class="settlement-overview-current">
+      <div class="settlement-art">
+        <PixelIcon :name="settlementIcon" :size="74" />
       </div>
-      <div class="settlement-status-copy">
-        <small>POZIOM OSADY</small>
-        <div class="settlement-status-title">
-          <h2>{{ current.name }}</h2>
-          <span>ETAP {{ Math.max(1, ['camp','small-settlement','settlement','village','large-village','small-town','town','large-town','city','large-city','metropolis'].indexOf(current.id) + 1) }}</span>
+
+      <div class="settlement-current-copy">
+        <h1>{{ current.name.toUpperCase() }}</h1>
+        <p class="tier-line">Poziom osady: <strong>{{ tierRoman }}</strong></p>
+
+        <div class="settlement-core-stats">
+          <div>
+            <PixelIcon name="person" :size="20" />
+            <span>Ludność</span>
+            <b>{{ game.population }} / {{ housing(game) }}</b>
+          </div>
+          <div>
+            <PixelIcon name="person" :size="20" />
+            <span>Wolni</span>
+            <b>{{ freeWorkers(game) }}</b>
+          </div>
+          <div>
+            <span class="stat-symbol">⌂</span>
+            <span>Mieszkania</span>
+            <b>{{ housing(game) }}</b>
+          </div>
         </div>
-        <p>{{ current.shortDescription }}</p>
       </div>
-      <button
-        v-if="next"
-        class="settlement-status-toggle"
-        :aria-expanded="expanded"
-        @click="expanded = !expanded"
-      >
-        {{ expanded ? "Zwiń" : "Szczegóły" }}
-      </button>
     </div>
 
-    <template v-if="next">
-      <div class="settlement-next-row">
-        <div>
-          <small>NASTĘPNY ETAP</small>
-          <strong>{{ next.name }}</strong>
-        </div>
-        <div class="settlement-progress-copy">
-          {{ completed }} / {{ requirements.length }} wymagań
+    <div v-if="next" class="settlement-overview-next">
+      <small>NASTĘPNY ETAP</small>
+      <h2>{{ next.name.toUpperCase() }}</h2>
+
+      <div class="settlement-requirement-preview">
+        <div
+          v-for="row in previewRequirements"
+          :key="row.label"
+          :class="{ met: row.met }"
+        >
+          <span>{{ row.met ? "✓" : "○" }}</span>
+          <span>{{ row.label }}</span>
         </div>
       </div>
-      <progress :value="progress" max="100" />
-    </template>
+
+      <div class="settlement-progress-footer">
+        <progress :value="progress" max="100" />
+        <span>{{ completed }} / {{ requirements.length }} wymagań</span>
+        <button
+          class="settlement-status-toggle"
+          :aria-expanded="expanded"
+          @click="expanded = !expanded"
+        >
+          {{ expanded ? "Zwiń" : "Szczegóły" }}
+        </button>
+      </div>
+    </div>
 
     <div v-if="expanded && next" class="settlement-status-details">
       <div class="settlement-next-description">
@@ -107,78 +155,100 @@ function promote() {
 
 <style scoped>
 .settlement-status-card {
-  margin: 10px 0 20px;
-  padding: 13px;
-  border: 1px solid #4d4a31;
-  background: linear-gradient(135deg, #1d2418, #141711 68%);
-  box-shadow: inset 3px 0 #8e934c33;
+  padding: 18px;
+  border: 1px solid #667044;
+  background: #111a14;
 }
-.settlement-status-main {
+.settlement-overview-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 11px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, .9fr);
+  gap: 0;
 }
-.settlement-status-icon {
-  width: 46px;
-  height: 46px;
+.settlement-overview-current {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding-right: 22px;
+}
+.settlement-art {
+  min-height: 104px;
   display: grid;
   place-items: center;
-  border: 1px solid #504b31;
-  background: #11150f;
 }
-.settlement-status-copy small,
-.settlement-next-row small,
+.settlement-current-copy h1 {
+  margin: 0 0 8px;
+  color: #f0e7c8;
+  font-size: 21px;
+  letter-spacing: 1px;
+}
+.tier-line {
+  margin: 0 0 15px;
+  color: #b7a969;
+  font-size: 12px;
+}
+.tier-line strong { color: #d8ca78; }
+.settlement-core-stats { display: grid; gap: 7px; }
+.settlement-core-stats > div {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  color: #abae98;
+  font-size: 12px;
+}
+.settlement-core-stats b { color: #e2ddc3; font-weight: 500; }
+.stat-symbol { color: #9acb63; font-size: 16px; text-align: center; }
+.settlement-overview-next {
+  padding-left: 22px;
+  border-left: 1px solid #465139;
+}
+.settlement-overview-next > small,
 .settlement-next-description small {
   display: block;
-  color: #8c8b6f;
+  color: #8f947b;
   font-size: 9px;
-  letter-spacing: .11em;
+  letter-spacing: .12em;
 }
-.settlement-status-title {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  margin: 2px 0 3px;
+.settlement-overview-next h2 {
+  margin: 4px 0 12px;
+  color: #f0e5bf;
+  font-size: 16px;
 }
-.settlement-status-title h2 { margin: 0; color: #e8dfc4; font-size: 18px; }
-.settlement-status-title span {
-  padding: 2px 5px;
-  border: 1px solid #5e6038;
-  color: #b9b66b;
-  font-size: 9px;
-}
-.settlement-status-copy p,
-.settlement-next-description p {
-  margin: 0;
-  color: #9a9882;
+.settlement-requirement-preview { display: grid; gap: 5px; min-height: 82px; }
+.settlement-requirement-preview > div {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 5px;
+  color: #b5a88e;
   font-size: 11px;
-  line-height: 1.45;
 }
-.settlement-status-toggle,
-.settlement-promote {
-  border-color: #6b6c3d;
-  background: #2b321d;
-  color: #e1d9b1;
-}
-.settlement-status-toggle { padding: 7px 10px; min-height: 32px; }
-.settlement-next-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: end;
+.settlement-requirement-preview > div.met { color: #a9c985; }
+.settlement-progress-footer {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) auto auto;
+  gap: 9px;
+  align-items: center;
   margin-top: 12px;
 }
-.settlement-next-row strong { display: block; margin-top: 2px; color: #cfc99c; }
-.settlement-progress-copy { color: #989979; font-size: 10px; }
-.settlement-status-card progress { width: 100%; height: 7px; margin-top: 7px; }
+.settlement-progress-footer progress { width: 100%; height: 8px; }
+.settlement-progress-footer > span { color: #9da187; font-size: 9px; white-space: nowrap; }
+.settlement-status-toggle,
+.settlement-promote {
+  border-color: #737846;
+  background: #29321e;
+  color: #e1d9b1;
+}
+.settlement-status-toggle { min-height: 32px; padding: 6px 10px; }
 .settlement-status-details {
-  margin-top: 13px;
-  padding-top: 13px;
-  border-top: 1px solid #363725;
+  grid-column: 1 / -1;
+  margin-top: 17px;
+  padding-top: 16px;
+  border-top: 1px solid #3b4433;
 }
 .settlement-next-description h3 { margin: 3px 0 4px; color: #e2d8bc; font-size: 14px; }
-.settlement-requirements { display: grid; gap: 5px; margin: 12px 0; }
+.settlement-next-description p { margin: 0; color: #9a9882; font-size: 11px; line-height: 1.45; }
+.settlement-requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 12px 0; }
 .settlement-requirement {
   display: flex;
   justify-content: space-between;
@@ -192,8 +262,16 @@ function promote() {
 .settlement-requirement b { font-weight: 500; text-align: right; }
 .settlement-status-details h4 { margin: 13px 0 7px; color: #bcb49d; font-size: 11px; }
 .settlement-promote { width: 100%; margin-top: 10px; padding: 9px; }
-@media (max-width: 650px) {
-  .settlement-status-main { grid-template-columns: auto 1fr; }
-  .settlement-status-toggle { grid-column: 1 / -1; width: 100%; }
+@media (max-width: 900px) {
+  .settlement-overview-card { grid-template-columns: 1fr; }
+  .settlement-overview-current { padding-right: 0; }
+  .settlement-overview-next { margin-top: 16px; padding: 16px 0 0; border-left: 0; border-top: 1px solid #465139; }
+}
+@media (max-width: 600px) {
+  .settlement-overview-current { grid-template-columns: 64px 1fr; }
+  .settlement-art { min-height: 72px; }
+  .settlement-requirements { grid-template-columns: 1fr; }
+  .settlement-progress-footer { grid-template-columns: 1fr auto; }
+  .settlement-progress-footer progress { grid-column: 1 / -1; }
 }
 </style>
