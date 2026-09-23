@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { freeWorkers, has, housing } from "./engine";
+import { has } from "./engine";
 import { civicServiceUnlocked } from "./civic";
-import { satelliteLimit } from "./progression";
+import { currentSettlementTier, satelliteLimit } from "./progression";
 import { useGame } from "./useGame";
 import PixelIcon from "./components/PixelIcon.vue";
 import ResourceSidebar from "./components/ResourceSidebar.vue";
@@ -23,17 +23,19 @@ const selected = ref("gatherers");
 const discovery = ref("stonecraft");
 const settings = ref(false);
 
+const settlementTier = computed(() => currentSettlementTier(game));
+const day = computed(() => 1 + Math.floor(game.elapsed / 600));
+
 const tabs = computed(() => {
   const result = ["Osada", "Odkrycia"];
 
+  if (satelliteLimit(game) > 0) result.push("Region");
+  if (game.population >= 12) result.push("Ludność");
+  if (civicServiceUnlocked(game, "watch")) result.push("Bezpieczeństwo");
   if (has(game, "scouting")) result.push("Wyprawy");
   if (has(game, "trade") || game.resources.gold > 0) result.push("Handel");
 
   result.push("Wydarzenia");
-
-  if (satelliteLimit(game) > 0) result.push("Region");
-  if (civicServiceUnlocked(game, "watch")) result.push("Bezpieczeństwo");
-
   return result;
 });
 
@@ -64,19 +66,19 @@ function resetUi() {
 </script>
 
 <template>
-  <div class="game-shell app-shell">
+  <div class="game-shell app-shell mockup-shell">
     <a class="skip-link" href="#main-content">Przejdź do widoku gry</a>
 
-    <header class="topbar app-topbar">
-      <a class="brand" href="#" @click.prevent="tab = 'Osada'">
+    <header class="topbar app-topbar mockup-topbar">
+      <a class="brand mockup-brand" href="#" @click.prevent="tab = 'Osada'">
         <PixelIcon name="fire" :size="42" />
         <span>
           OSTATNIE OGNISKO
-          <small>OD OBOZOWISKA DO MIASTA</small>
+          <small>{{ settlementTier.name }} · Dzień {{ day }}</small>
         </span>
       </a>
 
-      <nav aria-label="Główna nawigacja">
+      <nav class="mockup-nav" aria-label="Główna nawigacja">
         <button
           v-for="item in tabs"
           :key="item"
@@ -94,13 +96,24 @@ function resetUi() {
         </button>
       </nav>
 
-      <button
-        class="gear"
-        aria-label="Ustawienia i zapis"
-        @click="settings = true"
-      >
-        ⚙
-      </button>
+      <div class="topbar-actions">
+        <button
+          class="gear"
+          aria-label="Ustawienia i zapis"
+          title="Ustawienia i zapis"
+          @click="settings = true"
+        >
+          ⚙
+        </button>
+        <button
+          class="help-button"
+          aria-label="Pomoc"
+          title="Podstawowe zasady znajdziesz w ustawieniach"
+          @click="settings = true"
+        >
+          ?
+        </button>
+      </div>
     </header>
 
     <div v-if="notice" class="notice" role="status">
@@ -111,19 +124,12 @@ function resetUi() {
     <div class="layout app-layout" :class="{ 'wide-view': !hasContextPanel }">
       <ResourceSidebar />
 
-      <main class="panel main-panel app-main-panel" id="main-content" tabindex="-1">
-        <div class="panel-heading main-heading app-main-heading">
-          <div>
-            <small class="view-eyebrow">WIDOK</small>
-            <h1>{{ tab.toUpperCase() }}</h1>
-          </div>
-          <div class="population">
-            <PixelIcon name="person" :size="24" />
-            <span>{{ game.population }} / {{ housing(game) }}</span>
-            <span class="positive">Wolni: {{ freeWorkers(game) }}</span>
-          </div>
-        </div>
-
+      <main
+        id="main-content"
+        class="panel main-panel app-main-panel"
+        :class="{ 'settlement-workspace': tab === 'Osada' }"
+        tabindex="-1"
+      >
         <div
           v-if="game.resources.food <= 0 || game.resources.water <= 0"
           class="warning"
@@ -135,24 +141,34 @@ function resetUi() {
           v-if="tab === 'Osada'"
           :selected="selected"
           @select="selected = $event"
-          @navigate="navigate"
         />
 
-        <DiscoveryTree
-          v-else-if="tab === 'Odkrycia'"
-          :game="game"
-          :selected="discovery"
-          @select="pickDiscovery"
-        />
+        <template v-else>
+          <div class="workspace-heading">
+            <small>WIDOK</small>
+            <h1>{{ tab.toUpperCase() }}</h1>
+          </div>
 
-        <ExpeditionsView v-else-if="tab === 'Wyprawy'" />
-        <TradeView v-else-if="tab === 'Handel'" />
-        <EventsView v-else-if="tab === 'Wydarzenia'" />
-        <RegionView v-else-if="tab === 'Region'" />
+          <DiscoveryTree
+            v-if="tab === 'Odkrycia'"
+            :game="game"
+            :selected="discovery"
+            @select="pickDiscovery"
+          />
 
-        <div v-else-if="tab === 'Bezpieczeństwo'" class="embedded-system-view">
-          <CivicSafetyPanel embedded />
-        </div>
+          <ExpeditionsView v-else-if="tab === 'Wyprawy'" />
+          <TradeView v-else-if="tab === 'Handel'" />
+          <EventsView v-else-if="tab === 'Wydarzenia'" />
+          <RegionView v-else-if="tab === 'Region'" />
+
+          <div v-else-if="tab === 'Bezpieczeństwo'" class="embedded-system-view">
+            <CivicSafetyPanel embedded />
+          </div>
+
+          <div v-else-if="tab === 'Ludność'" class="empty-state population-placeholder">
+            Widok ludności odblokowano, ale szczegółowe role społeczne, potrzeby i demografia zostaną dodane w kolejnym module.
+          </div>
+        </template>
       </main>
 
       <aside
@@ -170,10 +186,10 @@ function resetUi() {
       </aside>
     </div>
 
-    <footer class="bottom-bar">
-      <span>◆ Dzień {{ 1 + Math.floor(game.elapsed / 600) }} · tik {{ game.elapsed }}</span>
-      <span>Zapis automatyczny · offline do 8 h</span>
-      <button class="text-button" @click="settings = true">Zapis i zasady</button>
+    <footer class="bottom-bar mockup-footer">
+      <span>◆ Dzień {{ day }}</span>
+      <span>Autozapis ✓</span>
+      <span>Offline do 8 h</span>
     </footer>
   </div>
 
@@ -185,16 +201,19 @@ function resetUi() {
 </template>
 
 <style scoped>
-.view-eyebrow {
+.workspace-heading {
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.workspace-heading small {
   display: block;
   margin-bottom: 2px;
   color: #828875;
   font-size: 9px;
   letter-spacing: .13em;
 }
-.app-main-heading { align-items: flex-end; }
+.workspace-heading h1 { margin: 0; }
 .embedded-system-view { min-height: 520px; }
-@media (max-width: 950px) {
-  .app-main-heading { align-items: center; }
-}
+.population-placeholder { margin-top: 0; }
 </style>
