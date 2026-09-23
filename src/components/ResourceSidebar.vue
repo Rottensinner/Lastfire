@@ -8,33 +8,63 @@ import PixelIcon from "./PixelIcon.vue";
 
 const { game } = useGame();
 const search = ref("");
+const favoritesOnly = ref(false);
 const groups = [...new Set(resources.map((resource) => resource.group))];
 const expanded = reactive<Record<string, boolean>>(
   Object.fromEntries(groups.map((group) => [group, true])),
 );
 
+const FAVORITES_KEY = "lastfire-resource-favorites";
+const fallbackFavorites: Resource[] = ["wood", "food", "stone", "iron"];
+const favorites = ref<Resource[]>(loadFavorites());
+
 const flow = computed(() => rates(game));
-const shown = computed(() =>
+const available = computed(() =>
   resources.filter(
     (resource) =>
-      (!resource.unlock || has(game, resource.unlock) || game.resources[resource.id] > 0) &&
+      !resource.unlock || has(game, resource.unlock) || game.resources[resource.id] > 0,
+  ),
+);
+const shown = computed(() =>
+  available.value.filter(
+    (resource) =>
+      resource.name.toLowerCase().includes(search.value.toLowerCase()) &&
+      (!favoritesOnly.value || favorites.value.includes(resource.id)),
+  ),
+);
+const favoriteRows = computed(() =>
+  available.value.filter(
+    (resource) =>
+      favorites.value.includes(resource.id) &&
       resource.name.toLowerCase().includes(search.value.toLowerCase()),
   ),
 );
-const remainingFood = computed(() =>
-  flow.value.food < 0
-    ? clock(game.resources.food / -flow.value.food)
-    : "bilans dodatni",
+const fullestStock = computed(() =>
+  Math.round(
+    Math.max(0, ...available.value.map((resource) => game.resources[resource.id])),
+  ),
 );
 
 const format = (value: number) =>
   new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 2 }).format(value);
 
-function clock(value: number) {
-  const seconds = Math.max(0, Math.ceil(value));
-  return `${Math.floor(seconds / 60)
-    .toString()
-    .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+function loadFavorites(): Resource[] {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    if (!raw) return fallbackFavorites;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return fallbackFavorites;
+    return parsed.filter((id): id is Resource => resources.some((resource) => resource.id === id));
+  } catch {
+    return fallbackFavorites;
+  }
+}
+
+function toggleFavorite(id: Resource) {
+  favorites.value = favorites.value.includes(id)
+    ? favorites.value.filter((item) => item !== id)
+    : [...favorites.value, id];
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites.value));
 }
 
 function reserve(id: Resource, event: Event) {
@@ -46,28 +76,65 @@ function reserve(id: Resource, event: Event) {
 </script>
 
 <template>
-  <aside class="panel resources-panel">
-    <div class="panel-heading">
+  <aside class="panel resources-panel mockup-resources">
+    <div class="panel-heading resource-heading">
       <h1>ZASOBY</h1>
-      <span class="muted">/ {{ capacity(game) }}</span>
+      <span class="muted">{{ fullestStock }} / {{ capacity(game) }}</span>
     </div>
 
-    <input
-      v-model="search"
-      class="resource-search"
-      aria-label="Szukaj zasobu"
-      placeholder="Szukaj zasobu…"
-    />
+    <div class="resource-search-row">
+      <input
+        v-model="search"
+        class="resource-search"
+        aria-label="Szukaj zasobu"
+        placeholder="Szukaj zasobu..."
+      />
+      <button
+        class="favorite-filter"
+        :class="{ active: favoritesOnly }"
+        :aria-pressed="favoritesOnly"
+        title="Pokaż tylko ulubione"
+        @click="favoritesOnly = !favoritesOnly"
+      >
+        ★
+      </button>
+    </div>
 
     <div class="resource-scroll">
+      <section v-if="favoriteRows.length && !favoritesOnly" class="resource-group favorites-group">
+        <div class="resource-group-label">▼ ★ ULUBIONE</div>
+        <div
+          v-for="resource in favoriteRows"
+          :key="`favorite-${resource.id}`"
+          class="resource-row resource-row-favorite"
+        >
+          <button
+            class="resource-star active"
+            :aria-label="`Usuń z ulubionych: ${resource.name}`"
+            @click="toggleFavorite(resource.id)"
+          >★</button>
+          <PixelIcon :name="resource.icon" :size="24" />
+          <span>{{ resource.name }}</span>
+          <b>{{ format(game.resources[resource.id]) }}</b>
+          <span
+            class="rate"
+            :class="{
+              negative: flow[resource.id] < 0,
+              muted: Math.abs(flow[resource.id]) < 0.001,
+            }"
+          >
+            {{ flow[resource.id] > 0 ? "+" : "" }}{{ format(flow[resource.id]) }}/s
+          </span>
+        </div>
+      </section>
+
       <section
         v-for="group in groups.filter((name) => shown.some((resource) => resource.group === name))"
         :key="group"
         class="resource-group"
       >
         <button class="resource-group-toggle" @click="expanded[group] = !expanded[group]">
-          <span>{{ expanded[group] ? "▾" : "▸" }} {{ group }}</span>
-          <small>{{ shown.filter((resource) => resource.group === group).length }}</small>
+          <span>{{ expanded[group] ? "▼" : "▶" }} {{ group }}</span>
         </button>
 
         <div v-show="expanded[group]">
@@ -75,9 +142,17 @@ function reserve(id: Resource, event: Event) {
             v-for="resource in shown.filter((item) => item.group === group)"
             :key="resource.id"
             class="resource-row"
-            :title="`${resource.name}: ${format(game.resources[resource.id])}. Bilans szacunkowy ${format(flow[resource.id])} / tik.`"
+            :title="`${resource.name}: ${format(game.resources[resource.id])}. Bilans ${format(flow[resource.id])} / s.`"
           >
-            <PixelIcon :name="resource.icon" :size="26" />
+            <button
+              class="resource-star"
+              :class="{ active: favorites.includes(resource.id) }"
+              :aria-label="favorites.includes(resource.id) ? `Usuń z ulubionych: ${resource.name}` : `Dodaj do ulubionych: ${resource.name}`"
+              @click="toggleFavorite(resource.id)"
+            >
+              {{ favorites.includes(resource.id) ? "★" : "☆" }}
+            </button>
+            <PixelIcon :name="resource.icon" :size="24" />
             <span>{{ resource.name }}</span>
             <b>{{ format(game.resources[resource.id]) }}</b>
             <span
@@ -87,18 +162,12 @@ function reserve(id: Resource, event: Event) {
                 muted: Math.abs(flow[resource.id]) < 0.001,
               }"
             >
-              {{ flow[resource.id] > 0 ? "+" : "" }}{{ format(flow[resource.id]) }}
+              {{ flow[resource.id] > 0 ? "+" : "" }}{{ format(flow[resource.id]) }}/s
             </span>
           </div>
         </div>
       </section>
     </div>
-
-    <div class="resource-footer"><span>1 TIK = 1 SEKUNDA</span></div>
-    <p class="stock-hint">
-      Jedzenie: {{ remainingFood }}<br />
-      Zużycie/os.: 0,012 jedzenia i 0,01 wody / tik.
-    </p>
 
     <details v-if="has(game, 'storage')" class="reserves">
       <summary>Rezerwy produkcyjne</summary>
@@ -123,11 +192,27 @@ function reserve(id: Resource, event: Event) {
 </template>
 
 <style scoped>
-.resource-group-toggle {
+.resource-heading { align-items: baseline; }
+.resource-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+.resource-search-row .resource-search { margin: 0; }
+.favorite-filter {
+  min-height: 38px;
+  border-color: #46543a;
+  background: #111912;
+  color: #8f9477;
+  font-size: 18px;
+}
+.favorite-filter.active { border-color: #9b9f4f; color: #e3cf67; background: #2c331d; }
+.resource-group-toggle,
+.resource-group-label {
   width: 100%;
   min-height: 28px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 4px;
   padding: 4px 2px;
@@ -135,13 +220,35 @@ function reserve(id: Resource, event: Event) {
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: transparent;
-  color: #bcbda9;
+  color: #d7d0ae;
   text-align: left;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
+  letter-spacing: 1.1px;
   font-weight: bold;
   font-size: 11px;
 }
 .resource-group-toggle:hover:not(:disabled) { background: #1b211a; }
-.resource-group-toggle small { color: #737b67; font-size: 9px; }
+.favorites-group { margin-bottom: 18px; }
+.resource-row {
+  position: relative;
+  grid-template-columns: 16px 24px minmax(0, 1fr) 48px 54px !important;
+}
+.resource-star {
+  width: 16px;
+  min-width: 16px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #555c4e;
+  font-size: 10px;
+  opacity: 0;
+}
+.resource-row:hover .resource-star,
+.resource-star.active { opacity: 1; }
+.resource-star.active { color: #d8bd59; }
+.resource-row-favorite .resource-star { opacity: 1; }
+@media (max-width: 650px) {
+  .resource-star { opacity: 1; }
+}
 </style>
