@@ -852,7 +852,7 @@ export function generateCivicEvent(s: CivicGameState) {
     templateId: template.id,
     createdAt: s.elapsed,
     expiresAt: s.elapsed + (template.lifetime ?? 220),
-    gangId: gang?.id,
+    ...(gang ? { gangId: gang.id } : {}),
   });
   log(s, `Nowe wydarzenie miejskie: ${template.name}.`);
   return true;
