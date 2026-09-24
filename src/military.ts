@@ -248,5 +248,6 @@ export function advanceMilitary(s: GameState, seconds: number) {
 export const unitRoleName = (role: MilitaryRole) => roleName[role];
 export const operationName = (id: string) => militaryOperations.find((operation) => operation.id === id)?.name ?? id;
 export function homeGarrison(s: GameState) {
-  return s.military.units.filter((unit) => unit.location === "home").reduce((total, unit) => total + activePeople(unit), 0);
+  const deployed = new Set(s.military.mission?.unitIds ?? []);
+  return s.military.units.filter((unit) => unit.location === "home" && !deployed.has(unit.id)).reduce((total, unit) => total + activePeople(unit), 0);
 }
