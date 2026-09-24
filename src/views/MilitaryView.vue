@@ -41,7 +41,7 @@ const supplyEstimate = computed(() => {
   }, 0);
   const time = operation.value.duration / 120;
   const supplies: Record<string, number> = { food: Math.ceil(count * time * 0.7), water: Math.ceil(count * time * 0.45) };
-  if (operation.value.kind === "raid" || operation.value.kind === "assault" || operation.value.kind === "rescue") supplies.medicine = Math.max(1, Math.ceil(count * 0.04));
+  if ((operation.value.kind === "raid" || operation.value.kind === "assault" || operation.value.kind === "rescue") && has(game, "herbalism")) supplies.medicine = Math.max(1, Math.ceil(count * 0.04));
   return supplies;
 });
 const estimatedRisk = computed(() => {
