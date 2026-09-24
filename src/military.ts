@@ -1,17 +1,18 @@
-import { collectLoot, freeWorkers, has, log, pay } from "./engine";
+import { collectLoot, freeWorkers, has, housing, log, pay } from "./engine";
 import type { Cost, GameState, MilitaryMission, MilitaryRole, MilitaryUnit, Resource } from "./types";
 
 export interface OperationDef {
   id: string;
   targetId: string;
   name: string;
-  kind: "patrol" | "scout" | "escort" | "raid" | "assault";
+  kind: "patrol" | "scout" | "escort" | "raid" | "assault" | "rescue";
   duration: number;
   threat: number;
   requires: string;
   description: string;
   reward: Cost;
   reputation?: number;
+  rescued?: number;
 }
 
 export const militaryTargets = [
@@ -25,6 +26,7 @@ export const militaryOperations: OperationDef[] = [
   { id: "road-scout", targetId: "old-road", name: "Rozpoznanie traktu", kind: "scout", duration: 90, threat: 4, requires: "watch", description: "Zbiera informacje o ruchu i zagrożeniach na szlaku.", reward: { maps: 1 } },
   { id: "road-escort", targetId: "old-road", name: "Eskorta karawany", kind: "escort", duration: 120, threat: 9, requires: "militia", description: "Chroni transport. Wymaga co najmniej jednego oddziału.", reward: { gold: 18 }, reputation: 1 },
   { id: "camp-scout", targetId: "looter-camp", name: "Obserwacja obozu", kind: "scout", duration: 150, threat: 10, requires: "militia", description: "Oszacuj liczebność i uzbrojenie przed atakiem.", reward: { maps: 1, knowledge: 4 } },
+  { id: "camp-rescue", targetId: "looter-camp", name: "Uwolnij jeńców", kind: "rescue", duration: 180, threat: 16, requires: "militia", description: "Wyprowadź ocalałych przetrzymywanych przez szabrowników. Wymaga rozpoznania i wolnych miejsc w domach.", reward: { food: 15, medicine: 2 }, rescued: 2 },
   { id: "camp-raid", targetId: "looter-camp", name: "Wypędź szabrowników", kind: "raid", duration: 210, threat: 24, requires: "militia", description: "Uderz na obóz i zabezpiecz teren. Rozpoznanie zmniejsza ryzyko.", reward: { wood: 45, food: 28, gold: 20 } },
   { id: "outpost-scout", targetId: "hostile-outpost", name: "Rozpoznanie posterunku", kind: "scout", duration: 240, threat: 15, requires: "military_logistics", description: "Poznaj fortyfikacje i siłę obrońców.", reward: { maps: 2, knowledge: 8 } },
   { id: "outpost-assault", targetId: "hostile-outpost", name: "Zdobądź posterunek", kind: "assault", duration: 420, threat: 48, requires: "military_logistics", description: "Operacja wysokiego ryzyka. Wymaga dobrego rozpoznania i silnego oddziału.", reward: { bricks: 50, iron: 15, gold: 45 } },
@@ -40,6 +42,7 @@ export const availableOperations = (s: GameState) => militaryOperations.filter((
   if (!has(s, operation.requires)) return false;
   if (operation.id === "road-escort") return ((s as GameState & { satellites?: unknown[] }).satellites?.length ?? 0) > 0;
   if (operation.id === "camp-raid") return targetState(s, "looter-camp").intel > 0;
+  if (operation.id === "camp-rescue") return targetState(s, "looter-camp").intel > 0 && !targetState(s, "looter-camp").cleared && housing(s) - s.population >= (operation.rescued ?? 0);
   if (operation.id === "outpost-assault") return targetState(s, "hostile-outpost").intel >= 2;
   return true;
 });
@@ -136,12 +139,12 @@ export function startMilitaryOperation(s: GameState, operationId: string, unitId
   if (selected.some((unit) => unit.location !== "home" && unit.location !== operation.targetId && !satelliteIds.includes(unit.location))) return false;
   const stationed = selected.every((unit) => unit.location === operation.targetId || satelliteIds.includes(unit.location));
   if (selected.every((unit) => unit.location === operation.targetId) && !target.outpost) return false;
-  if (operation.kind === "raid" && target.intel < 1 || operation.kind === "assault" && target.intel < 2) return false;
+  if ((operation.kind === "raid" || operation.kind === "rescue") && target.intel < 1 || operation.kind === "assault" && target.intel < 2) return false;
   const people = selected.reduce((n, unit) => n + activePeople(unit), 0);
   if (people < (operation.kind === "patrol" || operation.kind === "scout" ? 1 : 3)) return false;
   const scale = operation.duration / 120;
   const supplies: Cost = { food: Math.ceil(people * scale * 0.7), water: Math.ceil(people * scale * 0.45) };
-  if (operation.kind === "raid" || operation.kind === "assault") supplies.medicine = Math.max(1, Math.ceil(people * 0.04));
+  if (operation.kind === "raid" || operation.kind === "assault" || operation.kind === "rescue") supplies.medicine = Math.max(1, Math.ceil(people * 0.04));
   if (!pay(s, supplies)) return false;
   const duration = Math.max(45, Math.ceil(operation.duration * (has(s, "military_logistics") ? 0.8 : 1) * (stationed ? 0.72 : 1)));
   s.military.mission = { id: operation.id, targetId: operation.targetId, unitIds: [...unitIds], remaining: duration, duration, supplies };
@@ -161,7 +164,7 @@ function resolveOperation(s: GameState, mission: MilitaryMission) {
   const units = mission.unitIds.map((id) => unitById(s, id)).filter((unit): unit is MilitaryUnit => !!unit);
   const target = targetState(s, mission.targetId);
   const strength = units.reduce((total, unit) => total + militaryStrength(s, unit), 0);
-  const threat = Math.max(1, operation.threat * (operation.kind === "raid" || operation.kind === "assault" ? 1 - target.intel * 0.14 : 1));
+  const threat = Math.max(1, operation.threat * (operation.kind === "raid" || operation.kind === "assault" || operation.kind === "rescue" ? 1 - target.intel * 0.14 : 1));
   if (operation.kind === "scout") {
     target.intel = Math.min(3, target.intel + (units.some((unit) => unit.role === "scouts") ? 2 : 1));
     target.security = Math.min(100, target.security + 2);
@@ -180,19 +183,22 @@ function resolveOperation(s: GameState, mission: MilitaryMission) {
       s.loot[key as Resource] = (s.loot[key as Resource] ?? 0) + value;
     }
     s.reputation += operation.reputation ?? 0;
+    const rescued = Math.min(operation.rescued ?? 0, Math.max(0, housing(s) - s.population));
+    s.population += rescued;
     collectLoot(s);
-    const wounded = applyLosses(s, units, Math.max(0.04, 0.16 - (ratio - 1) * 0.025), 0.04);
-    report(s, `${operation.name}: zwycięstwo`, `Siła ${strength.toFixed(0)} wobec zagrożenia ${threat.toFixed(0)}. Rannych: ${wounded}. Teren zabezpieczony; łupy odebrane.`);
+    const losses = applyLosses(s, units, Math.max(0.04, 0.16 - (ratio - 1) * 0.025), 0.04);
+    const outcome = operation.kind === "rescue" ? `Uwolniono ${rescued} osób.` : "Teren zabezpieczony; łupy odebrane.";
+    report(s, `${operation.name}: zwycięstwo`, `Siła ${strength.toFixed(0)} wobec zagrożenia ${threat.toFixed(0)}. Ranni: ${losses.wounded}; polegli: ${losses.casualties}. ${outcome}`);
   } else if (ratio >= 0.68) {
     target.security = Math.max(0, target.security - 4);
-    const wounded = applyLosses(s, units, 0.22, 0.08);
+    const losses = applyLosses(s, units, 0.22, 0.08);
     for (const unit of units) unit.morale = Math.max(5, unit.morale - 15);
-    report(s, `${operation.name}: odwrót`, `Oddział wycofał się po starciu (siła ${strength.toFixed(0)} / zagrożenie ${threat.toFixed(0)}). Rannych: ${wounded}; cel pozostaje aktywny.`);
+    report(s, `${operation.name}: odwrót`, `Oddział wycofał się po starciu (siła ${strength.toFixed(0)} / zagrożenie ${threat.toFixed(0)}). Ranni: ${losses.wounded}; polegli: ${losses.casualties}; cel pozostaje aktywny.`);
   } else {
     target.security = Math.max(0, target.security - 10);
-    const casualties = applyLosses(s, units, 0.26, 0.18);
+    const losses = applyLosses(s, units, 0.26, 0.18);
     for (const unit of units) unit.morale = Math.max(0, unit.morale - 25);
-    report(s, `${operation.name}: porażka`, `Przeciwnik okazał się silniejszy (siła ${strength.toFixed(0)} / zagrożenie ${threat.toFixed(0)}). Stracono ${casualties} osób; pozostali się wycofali.`);
+    report(s, `${operation.name}: porażka`, `Przeciwnik okazał się silniejszy (siła ${strength.toFixed(0)} / zagrożenie ${threat.toFixed(0)}). Polegli: ${losses.casualties}; ranni: ${losses.wounded}; pozostali się wycofali.`);
   }
 }
 
@@ -212,23 +218,25 @@ function applyLosses(s: GameState, units: MilitaryUnit[], woundRatio: number, ca
   }
   s.population = Math.max(1, s.population - casualties);
   s.military.units = s.military.units.filter((unit) => unit.people > 0);
-  return casualties ? casualties : wounded;
+  return { wounded, casualties };
 }
 
 export function advanceMilitary(s: GameState, seconds: number) {
-  let remaining = Math.max(0, seconds);
+  const elapsed = Math.max(0, seconds);
   const mission = s.military.mission;
+  let timeAtHome = elapsed;
   if (mission) {
-    mission.remaining -= remaining;
+    timeAtHome = Math.max(0, elapsed - mission.remaining);
+    mission.remaining -= elapsed;
     if (mission.remaining <= 0) {
       resolveOperation(s, mission);
       s.military.mission = null;
-    }
+    } else timeAtHome = 0;
   }
   for (const unit of s.military.units) {
-    if (unit.location === "home" && !s.military.mission) unit.morale = Math.min(100, unit.morale + remaining / 180);
-    if (unit.wounded > 0 && remaining >= 120) {
-      const healed = Math.min(unit.wounded, Math.floor(remaining / 120) * (has(s, "herbalism") && s.resources.medicine > 0 ? 2 : 1));
+    if (unit.location === "home" && timeAtHome > 0) unit.morale = Math.min(100, unit.morale + timeAtHome / 180);
+    if (unit.location === "home" && unit.wounded > 0 && timeAtHome >= 120) {
+      const healed = Math.min(unit.wounded, Math.floor(timeAtHome / 120) * (has(s, "herbalism") && s.resources.medicine > 0 ? 2 : 1));
       const medicine = has(s, "herbalism") ? Math.min(s.resources.medicine, Math.ceil(healed / 2)) : 0;
       s.resources.medicine -= medicine;
       unit.wounded -= healed;
