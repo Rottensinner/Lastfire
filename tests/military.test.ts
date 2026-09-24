@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { freshGame, advance, parseSave } from "../src/civic";
 import { researches, resources } from "../src/data";
-import { formUnit, startMilitaryOperation, trainUnit, equipUnit, availableOperations } from "../src/military";
+import { formUnit, startMilitaryOperation, trainUnit, equipUnit, availableOperations, homeGarrison } from "../src/military";
 
 function preparedGame() {
   const game = freshGame(1);
@@ -30,7 +30,9 @@ test("wyposażenie, szkolenie i operacja rozstrzygają się oraz zapisują", () 
   assert.ok(equipUnit(game, unit.id, "weapons"));
   assert.ok(equipUnit(game, unit.id, "armor"));
   assert.ok(trainUnit(game, unit.id));
+  assert.ok(homeGarrison(game) > 0);
   assert.ok(startMilitaryOperation(game, "camp-scout", [unit.id]));
+  assert.equal(homeGarrison(game), 0);
   assert.ok(game.military.mission);
   const loaded = parseSave(JSON.stringify(game));
   assert.equal(loaded.military.mission?.id, "camp-scout");
