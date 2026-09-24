@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { has, freeWorkers, collectLoot } from "../engine";
+import { has, freeWorkers } from "../engine";
 import { useGame } from "../useGame";
 import {
   availableOperations,
@@ -28,7 +28,6 @@ const selectedUnits = ref<string[]>([]);
 const operations = computed(() => availableOperations(game));
 const free = computed(() => freeWorkers(game));
 const activeMission = computed(() => game.military.mission);
-const isDeployed = (id: string) => activeMission.value?.unitIds.includes(id) ?? false;
 const operation = computed(() => operations.value.find(item => item.id === operationId.value) ?? operations.value[0]);
 const selectedStrength = computed(() => selectedUnits.value.reduce((sum, id) => {
   const unit = game.military.units.find(item => item.id === id);
@@ -42,13 +41,13 @@ const supplyEstimate = computed(() => {
   }, 0);
   const time = operation.value.duration / 120;
   const supplies: Record<string, number> = { food: Math.ceil(count * time * 0.7), water: Math.ceil(count * time * 0.45) };
-  if (operation.value.kind === "raid" || operation.value.kind === "assault") supplies.medicine = Math.max(1, Math.ceil(count * 0.04));
+  if (operation.value.kind === "raid" || operation.value.kind === "assault" || operation.value.kind === "rescue") supplies.medicine = Math.max(1, Math.ceil(count * 0.04));
   return supplies;
 });
 const estimatedRisk = computed(() => {
   if (!operation.value) return "—";
   const intel = game.military.targets.find(target => target.id === operation.value.targetId)?.intel ?? 0;
-  const threat = operation.value.threat * (operation.value.kind === "raid" || operation.value.kind === "assault" ? 1 - intel * 0.14 : 1);
+  const threat = operation.value.threat * (operation.value.kind === "raid" || operation.value.kind === "assault" || operation.value.kind === "rescue" ? 1 - intel * 0.14 : 1);
   if (!selectedStrength.value) return "Wybierz oddział";
   const ratio = selectedStrength.value / Math.max(1, threat);
   return ratio >= 1.15 ? "Niskie" : ratio >= 0.8 ? "Umiarkowane" : "Wysokie";
