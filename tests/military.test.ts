@@ -41,3 +41,18 @@ test("wyposażenie, szkolenie i operacja rozstrzygają się oraz zapisują", () 
   assert.equal(availableOperations(loaded).some((item) => item.id === "camp-raid"), true);
   assert.ok(loaded.military.reports.length > 0);
 });
+
+test("porażka operacji zabiera część populacji i odsyła rannych do leczenia", () => {
+  const game = preparedGame();
+  assert.ok(formUnit(game, "militia", 8, "Straż przednia"));
+  const before = game.population;
+  game.military.targets.find((target) => target.id === "hostile-outpost")!.intel = 2;
+  const unit = game.military.units[0];
+  assert.ok(startMilitaryOperation(game, "outpost-assault", [unit.id]));
+  const duration = game.military.mission!.duration;
+  advance(game, duration);
+  assert.equal(game.military.mission, null);
+  assert.ok(game.population < before);
+  assert.ok(unit.wounded > 0);
+  assert.match(game.military.reports[0].text, /Polegli:/);
+});
