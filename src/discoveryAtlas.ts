@@ -10,6 +10,7 @@ export type DiscoveryCategoryId =
   | "metallurgy"
   | "knowledge"
   | "trade"
+  | "military"
   | "society"
   | "special";
 
@@ -77,6 +78,13 @@ export const discoveryCategories: DiscoveryCategory[] = [
     icon: "bronze",
     description: "Zwiad, wymiana, reputacja kupiecka i otwieranie świata poza osadą.",
     researchIds: ["scouting", "trade", "merchant"],
+  },
+  {
+    id: "military",
+    name: "Wojsko i obrona",
+    icon: "person",
+    description: "Warta, oddziały, uzbrojenie, logistyka i zabezpieczanie regionu.",
+    researchIds: ["watch", "militia", "spears", "bows", "fortifications", "military_logistics", "iron_arms"],
   },
   {
     id: "society",
