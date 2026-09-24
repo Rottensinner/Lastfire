@@ -47,7 +47,7 @@ Katalog `dist/` jest gotową stroną statyczną. Testy nie wymagają przeglądar
 - Łupy i nadmiar zwróconych materiałów pozostają do odbioru, także przy pełnym magazynie.
 - Złoto, osobne ceny zakupu/sprzedaży, ograniczony zapas kupca, zamówienia i reputacja. Dostawa i zamówienia odświeżają się co 300 tików.
 - Wojsko odblokowywane przez badania: garnizon, milicja, włócznicy i łucznicy, wyposażenie, szkolenie, morale, ranni, posterunki oraz garnizony osad zależnych.
-- Operacje strategiczne: patrole, rozpoznanie, eskorta, wypędzanie szabrowników i szturm na wrogi posterunek. Zapasy są opłacane przed wymarszem, wynik zależy od siły, wyszkolenia, morale i rozpoznania.
+- Operacje strategiczne: patrole, rozpoznanie, eskorta, ratunek jeńców, wypędzanie szabrowników i szturm na wrogi posterunek. Zapasy są opłacane przed wymarszem, wynik zależy od siły, wyszkolenia, morale i rozpoznania.
 - Straty zmniejszają populację; ranni blokują przydział do pracy aż do wyzdrowienia. Garnizon główny poprawia porządek, a oddziały w osadach zależnych podnoszą ich bezpieczeństwo.
 
 ## Tik i bilans
