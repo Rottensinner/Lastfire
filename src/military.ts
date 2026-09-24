@@ -144,7 +144,7 @@ export function startMilitaryOperation(s: GameState, operationId: string, unitId
   if (people < (operation.kind === "patrol" || operation.kind === "scout" ? 1 : 3)) return false;
   const scale = operation.duration / 120;
   const supplies: Cost = { food: Math.ceil(people * scale * 0.7), water: Math.ceil(people * scale * 0.45) };
-  if (operation.kind === "raid" || operation.kind === "assault" || operation.kind === "rescue") supplies.medicine = Math.max(1, Math.ceil(people * 0.04));
+  if ((operation.kind === "raid" || operation.kind === "assault" || operation.kind === "rescue") && has(s, "herbalism")) supplies.medicine = Math.max(1, Math.ceil(people * 0.04));
   if (!pay(s, supplies)) return false;
   const duration = Math.max(45, Math.ceil(operation.duration * (has(s, "military_logistics") ? 0.8 : 1) * (stationed ? 0.72 : 1)));
   s.military.mission = { id: operation.id, targetId: operation.targetId, unitIds: [...unitIds], remaining: duration, duration, supplies };
