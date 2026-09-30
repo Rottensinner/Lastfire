@@ -115,6 +115,51 @@ export interface EventDef {
   discovery?: string;
   reward?: Cost;
 }
+export type MilitaryRole = "militia" | "spearmen" | "archers" | "scouts";
+export type MilitaryLocation = "home" | string;
+export interface MilitaryUnit {
+  id: string;
+  name: string;
+  role: MilitaryRole;
+  people: number;
+  wounded: number;
+  training: number;
+  morale: number;
+  weapons: number;
+  armor: number;
+  location: MilitaryLocation;
+}
+export interface MilitaryTargetState {
+  id: string;
+  intel: number;
+  security: number;
+  cleared: boolean;
+  outpost: boolean;
+}
+export interface MilitaryMission {
+  id: string;
+  targetId: string;
+  unitIds: string[];
+  remaining: number;
+  duration: number;
+  supplies: Cost;
+}
+export interface MilitaryReport {
+  id: number;
+  title: string;
+  text: string;
+  createdAt: number;
+}
+export interface MilitaryState {
+  militaryVersion: 1;
+  units: MilitaryUnit[];
+  targets: MilitaryTargetState[];
+  mission: MilitaryMission | null;
+  reports: MilitaryReport[];
+  nextUnitId: number;
+  nextReportId: number;
+  outposts: number;
+}
 export interface GameState {
   version: 2;
   resources: Stock;
@@ -139,4 +184,5 @@ export interface GameState {
   market: Record<string, number>;
   marketTimer: number;
   autoEquip: boolean;
+  military: MilitaryState;
 }

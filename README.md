@@ -46,6 +46,9 @@ Katalog `dist/` jest gotową stroną statyczną. Testy nie wymagają przeglądar
 - Wyprawy rezerwują ludzi i wyposażenie. Plecak daje +25% łupów, kamienne narzędzia +15%. Sprzęt wraca; zapasy są zużywane. Nagrody są gwarantowane, a odkrycie cyny nie zależy od losowania.
 - Łupy i nadmiar zwróconych materiałów pozostają do odbioru, także przy pełnym magazynie.
 - Złoto, osobne ceny zakupu/sprzedaży, ograniczony zapas kupca, zamówienia i reputacja. Dostawa i zamówienia odświeżają się co 300 tików.
+- Wojsko odblokowywane przez badania: garnizon, milicja, włócznicy i łucznicy, wyposażenie, szkolenie, morale, ranni, posterunki oraz garnizony osad zależnych.
+- Operacje strategiczne: patrole, rozpoznanie, eskorta, ratunek jeńców, wypędzanie szabrowników i szturm na wrogi posterunek. Zapasy są opłacane przed wymarszem, wynik zależy od siły, wyszkolenia, morale i rozpoznania.
+- Straty zmniejszają populację; ranni blokują przydział do pracy aż do wyzdrowienia. Garnizon główny poprawia porządek, a oddziały w osadach zależnych podnoszą ich bezpieczeństwo.
 
 ## Tik i bilans
 
@@ -66,6 +69,7 @@ Jeżeli v2 nie istnieje, gra odczyta wcześniejszy `ostatnie-ognisko-v1` i przen
 - `src/types.ts` — kontrakty danych.
 - `src/data.ts` — zasoby, budynki, receptury, drzewka, wydarzenia, wyprawy i handel.
 - `src/engine.ts` — czysta gospodarka i walidacja/migracja zapisów.
+- `src/military.ts` — oddziały, wyposażenie, operacje wojskowe, posterunki i leczenie.
 - `src/useGame.ts` — zegar i zapis Vue.
 - `src/components/DiscoveryTree.vue` — układ i połączenia odkryć.
 - `src/App.vue` — działający interfejs wszystkich systemów.

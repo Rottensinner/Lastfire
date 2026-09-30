@@ -15,6 +15,7 @@ import type {
   Tool,
   Job,
   Recipe,
+  MilitaryState,
 } from "./types";
 export const MAX_OFFLINE = 28800;
 export const toolTiers: Tool[] = ["stoneTools", "bronzeTools", "tools"];
@@ -58,6 +59,20 @@ export function freshGame(now = Date.now()): GameState {
     market: {},
     marketTimer: 300,
     autoEquip: true,
+    military: {
+      militaryVersion: 1,
+      units: [],
+      targets: [
+        { id: "old-road", intel: 0, security: 25, cleared: false, outpost: false },
+        { id: "looter-camp", intel: 0, security: 0, cleared: false, outpost: false },
+        { id: "hostile-outpost", intel: 0, security: 0, cleared: false, outpost: false },
+      ],
+      mission: null,
+      reports: [],
+      nextUnitId: 1,
+      nextReportId: 1,
+      outposts: 0,
+    },
   };
   Object.assign(s.resources, { wood: 20, stone: 15, food: 35, water: 35 });
   for (const b of buildings)
@@ -96,6 +111,7 @@ export const freeWorkers = (s: GameState) =>
   s.population -
   s.builders -
   expeditionCrew(s) -
+  s.military.units.reduce((n, unit) => n + unit.people, 0) -
   buildings.reduce((n, b) => n + workersIn(s, b.id), 0);
 export const canPay = (s: GameState, c: Cost) =>
   Object.entries(c).every(([k, v]) => s.resources[k as Resource] + 1e-8 >= v);
@@ -783,6 +799,60 @@ export function parseSave(raw: string): GameState {
   s.market = { ...v.market };
   s.marketTimer = v.marketTimer;
   s.autoEquip = v.autoEquip;
+  const military: MilitaryState = v.military ?? {
+    militaryVersion: 1,
+    units: [],
+    targets: [
+      { id: "old-road", intel: 0, security: 25, cleared: false, outpost: false },
+      { id: "looter-camp", intel: 0, security: 0, cleared: false, outpost: false },
+      { id: "hostile-outpost", intel: 0, security: 0, cleared: false, outpost: false },
+    ],
+    mission: null,
+    reports: [],
+    nextUnitId: 1,
+    nextReportId: 1,
+    outposts: 0,
+  };
+  if (
+    military.militaryVersion !== 1 ||
+    !Array.isArray(military.units) || military.units.length > 100 ||
+    !Array.isArray(military.targets) || military.targets.length !== 3 ||
+    !Array.isArray(military.reports) || military.reports.length > 30 ||
+    !integer(military.nextUnitId, 1e6) || military.nextUnitId < 1 ||
+    !integer(military.nextReportId, 1e9) || military.nextReportId < 1 ||
+    !integer(military.outposts, 100)
+  ) throw Error("Nieprawidłowy stan wojska");
+  const unitIds = new Set<string>();
+  for (const unit of military.units) {
+    if (!unit || typeof unit.id !== "string" || !unit.id || unitIds.has(unit.id) ||
+      typeof unit.name !== "string" || unit.name.length < 2 || unit.name.length > 40 ||
+      !["militia", "spearmen", "archers", "scouts"].includes(unit.role) ||
+      !integer(unit.people, 500) || unit.people < 1 || !integer(unit.wounded, unit.people) ||
+      !integer(unit.training, 3) || !integer(unit.morale, 100) ||
+      !integer(unit.weapons, unit.people) || !integer(unit.armor, unit.people) ||
+      typeof unit.location !== "string" || unit.location.length > 80)
+      throw Error("Nieprawidłowy oddział");
+    unitIds.add(unit.id);
+  }
+  const targetIds = new Set(["old-road", "looter-camp", "hostile-outpost"]);
+  if (military.targets.some(target => !target || !targetIds.has(target.id) ||
+    !integer(target.intel, 3) || !integer(target.security, 100) ||
+    typeof target.cleared !== "boolean" || typeof target.outpost !== "boolean") ||
+    new Set(military.targets.map(target => target.id)).size !== 3)
+    throw Error("Nieprawidłowe zagrożenia");
+  if (military.mission && (!targetIds.has(military.mission.targetId) ||
+    !Array.isArray(military.mission.unitIds) || !military.mission.unitIds.length ||
+    !military.mission.unitIds.every(id => unitIds.has(id)) ||
+    new Set(military.mission.unitIds).size !== military.mission.unitIds.length ||
+    !n(military.mission.duration) || !military.mission.duration ||
+    !n(military.mission.remaining) || military.mission.remaining > military.mission.duration ||
+    !cost(military.mission.supplies))) throw Error("Nieprawidłowa operacja");
+  for (const report of military.reports) {
+    if (!report || !integer(report.id, 1e9) || typeof report.title !== "string" ||
+      typeof report.text !== "string" || report.title.length > 100 || report.text.length > 1000 ||
+      !n(report.createdAt, 1e9)) throw Error("Nieprawidłowy raport wojskowy");
+  }
+  s.military = JSON.parse(JSON.stringify(military)) as MilitaryState;
   s.log = Array.isArray(v.log)
     ? v.log
         .filter((x: any) => typeof x === "string")

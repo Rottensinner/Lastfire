@@ -19,7 +19,8 @@ const rich = () => {
   s.researched = researches.map((r) => r.id);
   for (const resource of resources) s.resources[resource.id] = 100_000;
   for (const building of Object.values(s.buildings)) building.level = 10;
-  s.population = 300;
+  s.population = 280;
+  for (const resource of resources) s.resources[resource.id] = 1_000;
   return s;
 };
 

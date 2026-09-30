@@ -16,6 +16,8 @@ import EventsView from "./views/EventsView.vue";
 import ExpeditionsView from "./views/ExpeditionsView.vue";
 import TradeView from "./views/TradeView.vue";
 import RegionView from "./views/RegionView.vue";
+import MilitaryView from "./views/MilitaryView.vue";
+import { militaryUnlocked } from "./military";
 
 const { game, notice } = useGame();
 const tab = ref("Osada");
@@ -34,6 +36,7 @@ const tabs = computed(() => {
   if (civicServiceUnlocked(game, "watch")) result.push("Bezpieczeństwo");
   if (has(game, "scouting")) result.push("Wyprawy");
   if (has(game, "trade") || game.resources.gold > 0) result.push("Handel");
+  if (militaryUnlocked(game)) result.push("Wojsko");
 
   result.push("Wydarzenia");
   return result;
@@ -160,6 +163,7 @@ function resetUi() {
           <TradeView v-else-if="tab === 'Handel'" />
           <EventsView v-else-if="tab === 'Wydarzenia'" />
           <RegionView v-else-if="tab === 'Region'" />
+          <MilitaryView v-else-if="tab === 'Wojsko'" />
 
           <div v-else-if="tab === 'Bezpieczeństwo'" class="embedded-system-view">
             <CivicSafetyPanel embedded />

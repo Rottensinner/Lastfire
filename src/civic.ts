@@ -10,6 +10,7 @@ import {
 } from "./progression";
 import { canPay, freeWorkers, pay } from "./engine";
 import type { Cost, Resource } from "./types";
+import { advanceMilitary, homeGarrison } from "./military";
 
 export { log };
 
@@ -243,6 +244,7 @@ export function civicPressure(s: CivicGameState) {
   const gangs = totalGangPower(s);
   const enforcement = enforcementStrength(s);
   const fire = fireProtection(s);
+  const guards = Math.min(20, homeGarrison(s));
 
   const crimePerMinute =
     0.05 +
@@ -251,6 +253,7 @@ export function civicPressure(s: CivicGameState) {
     wealth * 0.08 +
     urban * 0.025 +
     gangs / 700 -
+    guards * 0.0025 -
     enforcement * 0.018;
 
   const orderPerMinute =
@@ -258,6 +261,7 @@ export function civicPressure(s: CivicGameState) {
     civicOrderSupport(s) * 0.012 +
     s.publicTrust * 0.0015 -
     s.crime * 0.004 -
+    guards * 0.0015 -
     gangs / 900;
 
   const firePerMinute =
@@ -270,6 +274,7 @@ export function civicPressure(s: CivicGameState) {
     freeRatio,
     enforcement,
     fireProtection: fire,
+    homeGuards: guards,
     gangPower: gangs,
   };
 }
@@ -847,7 +852,7 @@ export function generateCivicEvent(s: CivicGameState) {
     templateId: template.id,
     createdAt: s.elapsed,
     expiresAt: s.elapsed + (template.lifetime ?? 220),
-    gangId: gang?.id,
+    ...(gang ? { gangId: gang.id } : {}),
   });
   log(s, `Nowe wydarzenie miejskie: ${template.name}.`);
   return true;
@@ -1079,4 +1084,5 @@ export function advance(s: CivicGameState, seconds: number) {
   const elapsed = Math.max(0, s.elapsed - before);
   advanceCivicMetrics(s, elapsed);
   processCivicSchedule(s);
+  advanceMilitary(s, elapsed);
 }
