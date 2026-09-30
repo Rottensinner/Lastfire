@@ -224,6 +224,7 @@ function applyLosses(s: GameState, units: MilitaryUnit[], woundRatio: number, ca
 export function advanceMilitary(s: GameState, seconds: number) {
   const elapsed = Math.max(0, seconds);
   const mission = s.military.mission;
+  const deployed = new Set(mission?.unitIds ?? []);
   let timeAtHome = elapsed;
   if (mission) {
     timeAtHome = Math.max(0, elapsed - mission.remaining);
@@ -234,13 +235,19 @@ export function advanceMilitary(s: GameState, seconds: number) {
     } else timeAtHome = 0;
   }
   for (const unit of s.military.units) {
-    if (unit.location === "home" && timeAtHome > 0) unit.morale = Math.min(100, unit.morale + timeAtHome / 180);
-    if (unit.location === "home" && unit.wounded > 0 && timeAtHome >= 120) {
-      const healed = Math.min(unit.wounded, Math.floor(timeAtHome / 120) * (has(s, "herbalism") && s.resources.medicine > 0 ? 2 : 1));
-      const medicine = has(s, "herbalism") ? Math.min(s.resources.medicine, Math.ceil(healed / 2)) : 0;
-      s.resources.medicine -= medicine;
-      unit.wounded -= healed;
-      if (healed) report(s, "Leczenie rannych", `${unit.name}: ${healed} osób wróciło do służby.`);
+    const restTime = deployed.has(unit.id) ? timeAtHome : elapsed;
+    if (unit.location === "home" && restTime > 0) unit.morale = Math.min(100, unit.morale + restTime / 180);
+    if (unit.location === "home" && unit.wounded > 0 && restTime > 0) {
+      unit.healingProgress = (unit.healingProgress ?? 0) + restTime;
+      while (unit.healingProgress >= 120 && unit.wounded > 0) {
+        const medicine = has(s, "herbalism") && s.resources.medicine >= 1;
+        const healed = Math.min(unit.wounded, medicine ? 2 : 1);
+        if (medicine) s.resources.medicine -= 1;
+        unit.wounded -= healed;
+        unit.healingProgress -= 120;
+        report(s, "Leczenie rannych", `${unit.name}: ${healed} osób wróciło do służby.`);
+      }
+      if (!unit.wounded) unit.healingProgress = 0;
     }
   }
 }
@@ -251,3 +258,4 @@ export function homeGarrison(s: GameState) {
   const deployed = new Set(s.military.mission?.unitIds ?? []);
   return s.military.units.filter((unit) => unit.location === "home" && !deployed.has(unit.id)).reduce((total, unit) => total + activePeople(unit), 0);
 }
+

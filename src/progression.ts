@@ -606,10 +606,11 @@ export function parseSave(raw: string): ProgressionGameState {
   return hydrateProgression(baseParseSave(raw), source);
 }
 
-export function advance(s: ProgressionGameState, seconds: number) {
-  const before = s.elapsed;
-  baseAdvance(s, seconds);
-  advanceRegionalEconomy(s, Math.max(0, s.elapsed - before));
+export function advance(s: ProgressionGameState, seconds: number, afterTick?: () => void) {
+  baseAdvance(s, seconds, () => {
+    advanceRegionalEconomy(s, 1);
+    afterTick?.();
+  });
 }
 
 export const regionalResourceRows = (s: ProgressionGameState) =>
@@ -620,3 +621,4 @@ export const regionalResourceRows = (s: ProgressionGameState) =>
       name: resourceName(id),
       amount,
     }));
+

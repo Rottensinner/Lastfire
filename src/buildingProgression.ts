@@ -1,7 +1,7 @@
 import { buildings, researchName, resourceName } from "./data";
 import { pay, unlocked } from "./engine";
 import type { Cost, Resource } from "./types";
-import type { ProgressionGameState, SettlementTierId } from "./progression";
+import { settlementTiers, type ProgressionGameState, type SettlementTierId } from "./progression";
 
 export interface BuildingStage {
   fromLevel: number;
@@ -112,7 +112,7 @@ export const buildingDevelopments: BuildingDevelopment[] = [
     stage(16, 20, "Wodociągi", "city", { bricks: 160, iron: 45, tools: 7, knowledge: 30, gold: 25 }, "Miejska infrastruktura wodna.", ["architecture"], 1.45, 1.5),
   ]),
   line("hunter", [
-    stage(1, 3, "Obóz łowiecki", "small-settlement", { wood: 30, stoneTools: 2, leather: 2 }, "Podstawowe polowania i wyprawianie skór."),
+    stage(1, 3, "Obóz łowiecki", "small-settlement", { wood: 35, stoneTools: 2 }, "Podstawowe polowania i wyprawianie skór."),
     stage(4, 7, "Chata łowców", "settlement", { planks: 25, leather: 8, rope: 4, stoneTools: 2 }, "Stała baza dla ekip łowieckich."),
     stage(8, 11, "Gildia łowiecka", "large-village", { planks: 40, cloth: 8, packs: 2, bronzeTools: 1 }, "Lepsza organizacja dalekich polowań."),
     stage(12, 15, "Punkt zaopatrzenia", "town", { hardplanks: 35, iron: 10, packs: 4, medicine: 4, tools: 2 }, "Profesjonalne zaplecze wypraw leśnych.", ["ironwork", "herbalism"], 1.38, 1.2),
@@ -154,7 +154,7 @@ export const buildingDevelopments: BuildingDevelopment[] = [
     stage(16, 20, "Zakład ceramiczno-węglowy", "city", { bricks: 140, iron: 30, coal: 35, tools: 5, knowledge: 18 }, "Przemysłowa produkcja materiałów wypalanych.", ["architecture"], 1.45, 1.45),
   ]),
   line("weaver", [
-    stage(1, 3, "Krosno", "village", { wood: 18, flax: 12, rope: 2 }, "Ręczna produkcja tkanin i lin."),
+    stage(1, 3, "Krosno", "settlement", { wood: 18, flax: 12, planks: 12 }, "Ręczna produkcja tkanin i lin."),
     stage(4, 7, "Warsztat tkacki", "large-village", { planks: 25, flax: 20, rope: 5, cloth: 4 }, "Więcej krosien i lepsza organizacja pracy."),
     stage(8, 11, "Tkarnia", "small-town", { planks: 40, bricks: 22, cloth: 10, bronze: 4 }, "Stały zakład włókienniczy."),
     stage(12, 15, "Manufaktura", "town", { hardplanks: 42, bricks: 50, iron: 10, tools: 2, cloth: 15 }, "Produkcja na potrzeby dużej ludności.", ["ironwork"], 1.4, 1.25),
@@ -274,7 +274,7 @@ export function buildingUpgradeRequirements(
   if (!stage) return [{ label: "Osiągnięto maksymalny poziom", met: false }];
   const rows: BuildingUpgradeRequirement[] = [
     {
-      label: `Poziom osady: ${stage.requiredSettlement}`,
+      label: `Poziom osady: ${settlementTiers.find((tier) => tier.id === stage.requiredSettlement)?.name ?? stage.requiredSettlement}`,
       met: settlementTierRank(s.settlementTier) >= settlementTierRank(stage.requiredSettlement),
     },
   ];
@@ -359,3 +359,4 @@ export function validateBuildingDevelopments() {
   });
   return { missing, malformed };
 }
+

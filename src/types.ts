@@ -123,6 +123,7 @@ export interface MilitaryUnit {
   role: MilitaryRole;
   people: number;
   wounded: number;
+  healingProgress?: number;
   training: number;
   morale: number;
   weapons: number;
@@ -186,3 +187,4 @@ export interface GameState {
   autoEquip: boolean;
   military: MilitaryState;
 }
+

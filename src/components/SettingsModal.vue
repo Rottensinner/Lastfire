@@ -8,7 +8,7 @@ const emit = defineEmits<{
   resetUi: [];
 }>();
 
-const { notice, save, reset, download, restore } = useGame();
+const { notice, save, reset, download, restore, recoveryAvailable, saveBlocked, downloadRecovery } = useGame();
 const confirmReset = ref(false);
 
 function importFile(event: Event) {
@@ -46,7 +46,12 @@ function resetGame() {
         Gra zapisuje się w tej przeglądarce co 15 sekund. Używaj jednej karty gry. Kopia JSON pozwala przenieść osadę.
       </p>
 
-      <button class="primary" @click="saveNow">Zapisz teraz</button>
+      <p v-if="saveBlocked" role="alert">
+        Zapis wymaga odzyskania. Oryginał jest chroniony przed nadpisaniem.
+        Wczytaj poprawny plik lub jawnie rozpocznij nową grę, aby wznowić zapisywanie.
+      </p>
+      <button v-if="recoveryAvailable" @click="downloadRecovery">Pobierz oryginalny zapis do odzyskania</button>
+      <button class="primary" :disabled="saveBlocked" @click="saveNow">Zapisz teraz</button>
       <button @click="download">Pobierz zapis JSON</button>
       <label class="file-button">
         Wczytaj zapis
@@ -62,7 +67,7 @@ function resetGame() {
           Specjaliści dają stałe premie. Populacja rośnie tylko przez zaakceptowane wydarzenia. Brak jedzenia lub wody zmniejsza produkcję i budowę do 25%; mieszkańcy nie umierają. Pauza zadania nie zwalnia ludzi.
         </p>
         <p>
-          Offline naliczamy do 8 godzin tym samym silnikiem. Łupy i wydarzenia czekają na decyzję. Cena sprzedaży jest niższa od ceny zakupu.
+          Offline naliczamy do 8 godzin tym samym silnikiem. Łupy czekają na odbiór. Wydarzenia miejskie mają termin decyzji, także offline. Cena sprzedaży jest niższa od ceny zakupu.
         </p>
       </details>
 
@@ -77,3 +82,4 @@ function resetGame() {
     </section>
   </div>
 </template>
+

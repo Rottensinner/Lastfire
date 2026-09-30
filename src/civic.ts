@@ -1079,10 +1079,9 @@ export function parseSave(raw: string): CivicGameState {
 }
 
 export function advance(s: CivicGameState, seconds: number) {
-  const before = s.elapsed;
-  advanceProgression(s, seconds);
-  const elapsed = Math.max(0, s.elapsed - before);
-  advanceCivicMetrics(s, elapsed);
-  processCivicSchedule(s);
-  advanceMilitary(s, elapsed);
+  advanceProgression(s, seconds, () => {
+    advanceMilitary(s, 1);
+    advanceCivicMetrics(s, 1);
+    processCivicSchedule(s);
+  });
 }
