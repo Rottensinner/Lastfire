@@ -447,67 +447,51 @@ export function fulfillOrder(s: GameState, id: string) {
   s.orders.push(id);
   return true;
 }
-export function rates(s: GameState): Stock {
-  const out = stock(),
-    hungry = s.resources.food <= 0 || s.resources.water <= 0;
-  for (const b of buildings)
+// Ta sama kolejność i ograniczenia co w tiku gospodarki.
+function produce(s: GameState, inventory: Stock) {
+  const amounts: Record<string, number> = {};
+  const cap = capacity(s);
+  const hungry = s.resources.food <= 0 || s.resources.water <= 0;
+  for (const b of buildings) {
     for (const r of b.recipes) {
-      if (!has(s, r.research) || jobStatus(s, b.id, r) !== "Pracuje") continue;
-      const amount =
-        effectiveWorkers(s.buildings[b.id].jobs[r.id], r) *
-        multiplier(s, b.id) *
-        (hungry ? 0.25 : 1);
-      for (const [k, v] of Object.entries(r.output))
-        out[k as Resource] += v * amount;
+      const j = s.buildings[b.id].jobs[r.id];
+      let amount = !s.buildings[b.id].level || !has(s, r.research) || j.paused
+        ? 0 : effectiveWorkers(j, r) * multiplier(s, b.id) * (hungry ? 0.25 : 1);
       for (const [k, v] of Object.entries(r.input))
-        out[k as Resource] -= v * amount;
+        amount = Math.min(amount, Math.max(0, inventory[k as Resource] - (s.reserves[k as Resource] ?? 0)) / v);
+      for (const [k, v] of Object.entries(r.output))
+        amount = Math.min(amount, Math.max(0, Math.min(cap, j.limit || Infinity) - inventory[k as Resource]) / v);
+      amount = Math.max(0, amount);
+      amounts[`${b.id}:${r.id}`] = amount;
+      for (const [k, v] of Object.entries(r.input)) inventory[k as Resource] = Math.max(0, inventory[k as Resource] - v * amount);
+      for (const [k, v] of Object.entries(r.output)) inventory[k as Resource] += v * amount;
     }
-  out.food -= s.population * 0.012;
-  out.water -= s.population * 0.01;
-  return out;
+  }
+  return amounts;
+}
+
+export function productionPreview(s: GameState) {
+  const inventory = { ...s.resources };
+  const amounts = produce(s, inventory);
+  inventory.food = Math.max(0, inventory.food - s.population * 0.012);
+  inventory.water = Math.max(0, inventory.water - s.population * 0.01);
+  const flow = stock();
+  for (const resource of resources) flow[resource.id] = inventory[resource.id] - s.resources[resource.id];
+  return { amounts, flow };
+}
+
+export function rates(s: GameState): Stock {
+  return productionPreview(s).flow;
 }
 // Jeden atomowy krok gospodarki. Części sekundy są przenoszone przez advance().
 export function tick(s: GameState) {
-  const cap = capacity(s),
-    hungry = s.resources.food <= 0 || s.resources.water <= 0;
+  const hungry = s.resources.food <= 0 || s.resources.water <= 0;
   if (s.autoEquip && s.elapsed % 5 === 0)
     for (const b of buildings)
       for (const r of b.recipes)
         if (r.tool && s.buildings[b.id].jobs[r.id].workers)
           equipBest(s, b.id, r.id);
-  for (const b of buildings) {
-    if (!s.buildings[b.id].level) continue;
-    for (const r of b.recipes) {
-      const j = s.buildings[b.id].jobs[r.id];
-      if (!has(s, r.research) || j.paused || !j.workers) continue;
-      let amount =
-        effectiveWorkers(j, r) * multiplier(s, b.id) * (hungry ? 0.25 : 1);
-      for (const [k, v] of Object.entries(r.input))
-        amount = Math.min(
-          amount,
-          Math.max(
-            0,
-            s.resources[k as Resource] - (s.reserves[k as Resource] ?? 0),
-          ) / v,
-        );
-      for (const [k, v] of Object.entries(r.output))
-        amount = Math.min(
-          amount,
-          Math.max(
-            0,
-            Math.min(cap, j.limit || Infinity) - s.resources[k as Resource],
-          ) / v,
-        );
-      amount = Math.max(0, amount);
-      for (const [k, v] of Object.entries(r.input))
-        s.resources[k as Resource] = Math.max(
-          0,
-          s.resources[k as Resource] - v * amount,
-        );
-      for (const [k, v] of Object.entries(r.output))
-        s.resources[k as Resource] += v * amount;
-    }
-  }
+  produce(s, s.resources);
   s.resources.food = Math.max(0, s.resources.food - s.population * 0.012);
   s.resources.water = Math.max(0, s.resources.water - s.population * 0.01);
   const build = s.buildQueue[0];
@@ -547,12 +531,15 @@ export function tick(s: GameState) {
     s.marketTimer = 300;
   }
 }
-export function advance(s: GameState, seconds: number) {
+export function advance(s: GameState, seconds: number, afterTick?: () => void) {
   if (!Number.isFinite(seconds) || seconds <= 0) return;
   const total = s.fraction + Math.min(MAX_OFFLINE, seconds);
   const steps = Math.floor(total + 1e-9);
   s.fraction = Math.max(0, total - steps);
-  for (let i = 0; i < steps; i++) tick(s);
+  for (let i = 0; i < steps; i++) {
+    tick(s);
+    afterTick?.();
+  }
 }
 // Starszy zapis jest przenoszony bez odbierania mieszkańców i zasobów.
 function migrateV1(v: any): GameState {
@@ -828,7 +815,8 @@ export function parseSave(raw: string): GameState {
       typeof unit.name !== "string" || unit.name.length < 2 || unit.name.length > 40 ||
       !["militia", "spearmen", "archers", "scouts"].includes(unit.role) ||
       !integer(unit.people, 500) || unit.people < 1 || !integer(unit.wounded, unit.people) ||
-      !integer(unit.training, 3) || !integer(unit.morale, 100) ||
+      !integer(unit.training, 3) || !n(unit.morale, 100) ||
+      (unit.healingProgress !== undefined && (!n(unit.healingProgress, 120) || unit.healingProgress >= 120)) ||
       !integer(unit.weapons, unit.people) || !integer(unit.armor, unit.people) ||
       typeof unit.location !== "string" || unit.location.length > 80)
       throw Error("Nieprawidłowy oddział");
@@ -863,3 +851,4 @@ export function parseSave(raw: string): GameState {
     throw Error("Nieprawidłowa populacja");
   return s;
 }
+

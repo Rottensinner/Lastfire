@@ -17,6 +17,9 @@ type GameController = {
   reset: () => void;
   download: () => void;
   restore: (file: File) => Promise<void>;
+  recoveryAvailable: Ref<boolean>;
+  saveBlocked: Ref<boolean>;
+  downloadRecovery: () => void;
 };
 
 let shared: GameController | null = null;
@@ -26,10 +29,13 @@ export function useGame(): GameController {
 
   const notice = ref("");
   let initial = freshGame();
+  let raw: string | null = null;
+  const recoveryAvailable = ref(false);
+  const saveBlocked = ref(false);
   try {
-    const raw =
+    raw =
       localStorage.getItem(KEY) ?? localStorage.getItem("ostatnie-ognisko-v1");
-    if (raw) {
+    if (raw !== null) {
       initial = parseSave(raw);
       const away = Math.min(
         MAX_OFFLINE,
@@ -40,7 +46,13 @@ export function useGame(): GameController {
         notice.value = `Witaj z powrotem. Osada pracowała przez ${Math.floor(away / 60)} min (limit 8 godzin).`;
     }
   } catch {
-    notice.value = "Nie udało się odczytać zapisu. Rozpoczęto nową osadę.";
+    initial = freshGame();
+    recoveryAvailable.value = raw !== null;
+    saveBlocked.value = true;
+    if (raw !== null) {
+      try { localStorage.setItem(`${KEY}-recovery`, raw); } catch { /* Oryginał pozostaje pod dotychczasowym kluczem. */ }
+    }
+    notice.value = "Nie udało się odczytać zapisu. Automatyczny zapis jest wstrzymany. Pobierz oryginał w ustawieniach, a następnie wczytaj zapis lub rozpocznij od nowa.";
   }
 
   const game = reactive(initial) as CivicGameState;
@@ -49,6 +61,7 @@ export function useGame(): GameController {
   let saves = 0;
 
   function save() {
+    if (saveBlocked.value) return false;
     try {
       game.savedAt = Date.now();
       localStorage.setItem(KEY, JSON.stringify(game));
@@ -86,22 +99,30 @@ export function useGame(): GameController {
   });
 
   function reset() {
+    recoveryAvailable.value = false;
+    saveBlocked.value = false;
     Object.assign(game, freshGame());
     last = Date.now();
     save();
     notice.value = "Nowe ognisko zapłonęło.";
   }
 
-  function download() {
-    save();
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(game, null, 2)], { type: "application/json" }),
-    );
+  function downloadText(text: string, filename: string) {
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = "ostatnie-ognisko-zapis.json";
+    a.download = filename;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function download() {
+    save();
+    downloadText(JSON.stringify(game, null, 2), "ostatnie-ognisko-zapis.json");
+  }
+
+  function downloadRecovery() {
+    if (raw !== null) downloadText(raw, "ostatnie-ognisko-zapis-do-odzyskania.json");
   }
 
   async function restore(file: File) {
@@ -109,6 +130,8 @@ export function useGame(): GameController {
       if (file.size > 1000000) throw new Error("Plik jest zbyt duży.");
       const parsed = parseSave(await file.text());
       advance(parsed, Math.max(0, (Date.now() - parsed.savedAt) / 1000));
+      recoveryAvailable.value = false;
+      saveBlocked.value = false;
       Object.assign(game, parsed);
       last = Date.now();
       save();
@@ -120,6 +143,7 @@ export function useGame(): GameController {
     }
   }
 
-  shared = { game, notice, save, reset, download, restore };
+  shared = { game, notice, save, reset, download, restore, recoveryAvailable, saveBlocked, downloadRecovery };
   return shared;
 }
+

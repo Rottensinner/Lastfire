@@ -10,6 +10,7 @@ import {
   jobStatus,
   maxWorkers,
   multiplier,
+  productionPreview,
   removeEquipment,
   toolTiers,
   workersIn,
@@ -53,12 +54,16 @@ const format = (n: number) =>
 
 const settlementName = (id: string) => settlementTiers.find((tier) => tier.id === id)?.name ?? id;
 
-function outputText(recipe: Recipe) {
+const preview = computed(() => productionPreview(game));
+
+function outputText(recipe: Recipe, potential = false) {
   const job = state.value.jobs[recipe.id];
   return Object.entries(recipe.output)
     .map(([resource, amount]) => {
       const starvation = game.resources.food <= 0 || game.resources.water <= 0 ? 0.25 : 1;
-      const value = amount * effectiveWorkers(job, recipe) * multiplier(game, building.value.id) * starvation;
+      const value = amount * (potential
+        ? effectiveWorkers(job, recipe) * multiplier(game, building.value.id) * starvation
+        : (preview.value.amounts[`${building.value.id}:${recipe.id}`] ?? 0));
       return `${format(value)} ${resourceName(resource)}`;
     })
     .join(", ");
@@ -168,8 +173,9 @@ function upgrade() {
             </div>
           </div>
           <div class="inspector-output">
-            <small>PRODUKCJA</small>
-            <strong>{{ jobStatus(game, building.id, recipe) === "Pracuje" ? outputText(recipe) : "0" }} / tik</strong>
+            <small>RZECZYWISTA / SEKUNDĘ</small>
+            <strong>{{ outputText(recipe) }}</strong>
+            <small>Możliwa: {{ outputText(recipe, true) }} / s</small>
           </div>
         </div>
 
@@ -248,6 +254,10 @@ function upgrade() {
 
         <h3>Koszt rozbudowy</h3>
         <CostList :cost="nextCost" :stock="game.resources" />
+        <p v-if="(nextCost.rope ?? 0) > game.resources.rope" class="muted">
+          Liny powstają z lnu w Krośnie. Odblokuj Rolnictwo i Piłowanie drewna,
+          zbadaj Tkactwo i liny, a następnie przydziel pracownika do produkcji lin.
+        </p>
         <button
           class="development-action"
           :disabled="!canQueueStagedUpgrade(game, building.id)"
@@ -390,3 +400,4 @@ function upgrade() {
   .building-level-badge { min-width: 48px; }
 }
 </style>
+

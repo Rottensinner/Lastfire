@@ -89,3 +89,33 @@ Każda receptura automatycznie dostaje osobny przydział pracowników, wyposaże
 ## Kolejne etapy
 
 Obecna wersja nie zawiera jeszcze placówek terenowych, karawan na stałych trasach, automatycznego przenoszenia pracowników według priorytetów, zużywania narzędzi ani pór roku. Te systemy warto dodawać po przetestowaniu tempa tej gospodarki. Kod jest grywalnym przykładem, a wartości produkcji i kosztów punktem wyjścia do balansu.
+
+
+
+### Progresja i zgodność symulacji
+
+Pierwsze Krosno można zbudować w Osadzie po badaniu „Tkactwo i liny”
+za 18 drewna, 12 lnu i 12 desek. Liny są następnie wymagane przez Studnię,
+która otwiera awans do Wsi, oraz dalsze ulepszenia. Pierwszy Obóz łowiecki
+kosztuje drewno i narzędzia kamienne; skóry uzyskuje się dopiero z polowań.
+
+Gospodarka, dostawy regionalne, wojsko i służby miejskie pracują w kolejnych
+sekundowych krokach. Dłuższa nieobecność stosuje te same reguły co gra online
+(limit 8 godzin), włącznie z terminami wydarzeń i utrzymaniem służb. Leczenie
+zachowuje częściowy postęp w zapisie.
+
+Drzewo odkryć pokazuje połączenia technologii, pozwala filtrować dziedziny,
+przesuwać tło i zmieniać skalę przyciskami lub Ctrl + kółkiem myszy.
+Wymagane technologie z innych dziedzin pozostają widoczne przy filtrowaniu.
+Nieodblokowane przyszłe odkrycia pozostają ukryte.
+
+Panel produkcji pokazuje możliwą i rzeczywistą produkcję na sekundę.
+Rzeczywista uwzględnia rezerwy, limity magazynu i kolejność zużywania surowców.
+
+Jeśli zapis nie daje się odczytać, automatyczne zapisywanie jest wstrzymane,
+a oryginalny plik można pobrać w ustawieniach. Dopiero jawny reset lub
+wczytanie prawidłowego pliku zezwala na ponowne zapisywanie.
+
+Testy regresji obejmują osiągalność wdrożonych progów osady, pierwszą linę,
+zgodność symulacji online/offline, leczenie, produkcję i ochronę zapisu.
+Test osiągalności bada zależności; nie mierzy tempa ani balansu rozwoju.

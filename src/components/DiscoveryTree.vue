@@ -1,268 +1,134 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { researches, researchName } from "../data";
+import { computed, ref, nextTick, watch } from "vue";
+import { researches } from "../data";
 import { visibleResearch, has } from "../engine";
 import type { GameState } from "../types";
-import {
-  discoveryCategories,
-  discoveryCategory,
-  discoveriesInCategory,
-  discoveryDepth,
-  type DiscoveryCategoryId,
-} from "../discoveryAtlas";
+import { discoveryCategories, discoveryCategory, discoveryDepth, type DiscoveryCategoryId } from "../discoveryAtlas";
 import PixelIcon from "./PixelIcon.vue";
 
 const props = defineProps<{ game: GameState; selected: string }>();
 const emit = defineEmits<{ select: [id: string] }>();
-
-const activeCategory = ref<DiscoveryCategoryId>(discoveryCategory(props.selected));
-
-watch(
-  () => props.selected,
-  (id) => {
-    const category = discoveryCategory(id);
-    if (category !== activeCategory.value) activeCategory.value = category;
-  },
-);
-
-const category = computed(() =>
-  discoveryCategories.find((item) => item.id === activeCategory.value)!,
-);
-
-const categoryResearches = computed(() =>
-  discoveriesInCategory(activeCategory.value).filter((research) =>
-    visibleResearch(props.game, research.id),
-  ),
-);
-
-const levels = computed(() => {
-  const grouped = new Map<number, typeof researches>();
-  for (const research of categoryResearches.value) {
-    const depth = discoveryDepth(research.id);
-    const list = grouped.get(depth) ?? [];
-    list.push(research);
-    grouped.set(depth, list);
+const activeCategory = ref<DiscoveryCategoryId | "all">("all");
+const zoom = ref(1);
+const viewport = ref<HTMLElement>();
+const visible = computed(() => researches.filter(r => visibleResearch(props.game, r.id)));
+const nodes = computed(() => {
+  const ids = new Set(visible.value.filter(r => activeCategory.value === "all" || discoveryCategory(r.id) === activeCategory.value).map(r => r.id));
+  // Zależności z innych dziedzin pozostają widoczne w wybranej gałęzi.
+  function addParents(id: string) {
+    for (const parent of researches.find(r => r.id === id)?.requires ?? []) {
+      if (!ids.has(parent) && visible.value.some(r => r.id === parent)) { ids.add(parent); addParents(parent); }
+    }
   }
-  return [...grouped.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([depth, items]) => ({ depth, items }));
+  for (const id of [...ids]) addParents(id);
+  const rows = new Map<number, number>();
+  return visible.value.filter(r => ids.has(r.id)).map(research => {
+    const depth = discoveryDepth(research.id);
+    const row = rows.get(depth) ?? 0;
+    rows.set(depth, row + 1);
+    return { ...research, x: 24 + depth * 270, y: 24 + row * 116 };
+  });
 });
-
-const categoryCount = (id: DiscoveryCategoryId) =>
-  discoveriesInCategory(id).filter((research) => visibleResearch(props.game, research.id)).length;
-
-function selectCategory(id: DiscoveryCategoryId) {
-  activeCategory.value = id;
-  const first = discoveriesInCategory(id).find((research) => visibleResearch(props.game, research.id));
-  if (first) emit("select", first.id);
+const width = computed(() => Math.max(600, ...nodes.value.map(n => n.x + 250)));
+const height = computed(() => Math.max(460, ...nodes.value.map(n => n.y + 110)));
+const edges = computed(() => nodes.value.flatMap(node => node.requires.flatMap(id => {
+  const parent = nodes.value.find(n => n.id === id);
+  if (!parent) return [];
+  const x = parent.x + 220, y = parent.y + 44, end = node.x, ey = node.y + 44;
+  return [{ id: `${id}-${node.id}`, d: `M ${x} ${y} C ${x + 25} ${y}, ${end - 25} ${ey}, ${end} ${ey}`, known: has(props.game, node.id) }];
+})));
+async function changeZoom(value: number) {
+  const element = viewport.value;
+  const previous = zoom.value;
+  const next = Math.max(.45, Math.min(1.8, Math.round(value * 100) / 100));
+  const left = element ? element.scrollLeft + element.clientWidth / 2 : 0;
+  const top = element ? element.scrollTop + element.clientHeight / 2 : 0;
+  zoom.value = next;
+  await nextTick();
+  if (element) {
+    element.scrollLeft = left * next / previous - element.clientWidth / 2;
+    element.scrollTop = top * next / previous - element.clientHeight / 2;
+  }
 }
+function wheel(event: WheelEvent) {
+  if (event.ctrlKey || event.metaKey) { event.preventDefault(); changeZoom(zoom.value + (event.deltaY < 0 ? .1 : -.1)); }
+}
+let drag: { x: number; y: number; left: number; top: number; pointer: number } | null = null;
+function startPan(event: PointerEvent) {
+  if (event.button !== 0 || (event.target as HTMLElement).closest("button") || !viewport.value) return;
+  drag = { x: event.clientX, y: event.clientY, left: viewport.value.scrollLeft, top: viewport.value.scrollTop, pointer: event.pointerId };
+  viewport.value.setPointerCapture(event.pointerId);
+}
+function pan(event: PointerEvent) {
+  if (!drag || drag.pointer !== event.pointerId || !viewport.value) return;
+  viewport.value.scrollLeft = drag.left + drag.x - event.clientX;
+  viewport.value.scrollTop = drag.top + drag.y - event.clientY;
+}
+function stopPan() { drag = null; }
+watch(() => props.selected, async id => {
+  if (!nodes.value.some(node => node.id === id)) activeCategory.value = "all";
+  await nextTick();
+  const node = nodes.value.find(node => node.id === id);
+  const element = viewport.value;
+  if (node && element) {
+    element.scrollLeft = Math.max(0, node.x * zoom.value - element.clientWidth / 2 + 110 * zoom.value);
+    element.scrollTop = Math.max(0, node.y * zoom.value - element.clientHeight / 2 + 44 * zoom.value);
+  }
+});
+function resetView() { zoom.value = 1; if (viewport.value) { viewport.value.scrollLeft = 0; viewport.value.scrollTop = 0; } }
 </script>
 
 <template>
-  <div class="atlas">
-    <aside class="atlas-sidebar">
-      <div class="atlas-title">
-        <small>ATLAS ODKRYĆ</small>
-        <strong>Dziedziny wiedzy</strong>
-      </div>
-      <button
-        v-for="item in discoveryCategories"
-        :key="item.id"
-        class="category-button"
-        :class="{ active: activeCategory === item.id }"
-        @click="selectCategory(item.id)"
-      >
-        <PixelIcon :name="item.icon" :size="30" />
-        <span>
-          <b>{{ item.name }}</b>
-          <small>{{ categoryCount(item.id) }} widocznych</small>
-        </span>
-      </button>
-    </aside>
-
-    <section class="atlas-content">
-      <header class="atlas-header">
-        <div>
-          <small>DZIEDZINA</small>
-          <h2>{{ category.name }}</h2>
-          <p>{{ category.description }}</p>
+  <div class="discovery-atlas">
+    <nav class="tree-categories" aria-label="Dziedzina odkryć">
+      <button :aria-pressed="activeCategory === 'all'" @click="activeCategory = 'all'">Całe drzewo</button>
+      <button v-for="category in discoveryCategories" :key="category.id" :aria-pressed="activeCategory === category.id" @click="activeCategory = category.id">{{ category.name }}</button>
+    </nav>
+    <div class="tree-tools">
+      <span>Przeciągnij tło, aby przesunąć. Ctrl + kółko zmienia skalę.</span>
+      <button aria-label="Oddal drzewo" :disabled="zoom <= .45" @click="changeZoom(zoom - .1)">−</button>
+      <output aria-label="Skala drzewa">{{ Math.round(zoom * 100) }}%</output>
+      <button aria-label="Przybliż drzewo" :disabled="zoom >= 1.8" @click="changeZoom(zoom + .1)">+</button>
+      <button @click="resetView">Reset widoku</button>
+    </div>
+    <div ref="viewport" class="tree-viewport" tabindex="0" aria-label="Drzewo odkryć, przewijaj strzałkami" @wheel="wheel" @pointerdown="startPan" @pointermove="pan" @pointerup="stopPan" @pointercancel="stopPan" @lostpointercapture="stopPan">
+      <p v-if="!nodes.length" class="tree-empty">Ta dziedzina nie ma jeszcze widocznych odkryć. Rozwijaj powiązane gałęzie.</p>
+      <div v-else class="tree-space" :style="{ width: `${width * zoom}px`, height: `${height * zoom}px` }">
+        <div class="tree-canvas" :style="{ width: `${width}px`, height: `${height}px`, transform: `scale(${zoom})` }">
+          <svg :width="width" :height="height" aria-hidden="true">
+            <path v-for="edge in edges" :key="edge.id" :d="edge.d" :class="{ known: edge.known }" />
+          </svg>
+          <button v-for="node in nodes" :key="node.id" class="tree-node" :class="{ selected: selected === node.id, known: has(game, node.id), researching: game.research?.id === node.id, special: node.kind !== 'research' }" :style="{ left: `${node.x}px`, top: `${node.y}px` }" :aria-pressed="selected === node.id" @click="emit('select', node.id)">
+            <PixelIcon :name="node.icon" :size="36" />
+            <span><strong>{{ node.name }}</strong><small>{{ has(game, node.id) ? '✓ Odkryto' : game.research?.id === node.id ? 'Badanie w toku' : node.kind === 'research' ? 'Dostępne badanie' : 'Znalezisko lub wydarzenie' }}</small></span>
+          </button>
         </div>
-        <div class="atlas-legend">
-          <span>◇ dostępne</span>
-          <span class="known">✓ odkryte</span>
-          <span class="special">✦ specjalne</span>
-        </div>
-      </header>
-
-      <div v-if="!levels.length" class="atlas-empty">
-        Dalsze odkrycia tej dziedziny są jeszcze ukryte. Rozwijaj powiązane gałęzie.
       </div>
-
-      <div v-else class="level-list">
-        <section v-for="level in levels" :key="level.depth" class="discovery-level">
-          <div class="level-label">
-            <small>ETAP</small>
-            <strong>{{ level.depth + 1 }}</strong>
-          </div>
-
-          <div class="level-nodes">
-            <button
-              v-for="node in level.items"
-              :key="node.id"
-              class="atlas-node"
-              :class="{
-                selected: selected === node.id,
-                known: has(game, node.id),
-                researching: game.research?.id === node.id,
-                special: node.kind !== 'research',
-              }"
-              @click="emit('select', node.id)"
-            >
-              <div class="node-icon">
-                <PixelIcon :name="node.icon" :size="42" />
-                <span>{{ has(game, node.id) ? "✓" : game.research?.id === node.id ? "…" : node.kind !== "research" ? "✦" : "◇" }}</span>
-              </div>
-              <div class="node-copy">
-                <strong>{{ node.name }}</strong>
-                <small v-if="node.requires.length">
-                  Wymaga: {{ node.requires.map(researchName).join(", ") }}
-                </small>
-                <small v-else>Początek gałęzi</small>
-              </div>
-            </button>
-          </div>
-        </section>
-      </div>
-    </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.atlas {
-  display: grid;
-  grid-template-columns: 185px minmax(0, 1fr);
-  min-height: 560px;
-  border-top: 1px solid #342f27;
-}
-.atlas-sidebar {
-  padding: 12px;
-  border-right: 1px solid #342f27;
-  background: #11110e;
-}
-.atlas-title {
-  padding: 5px 7px 12px;
-  border-bottom: 1px solid #302b23;
-  margin-bottom: 8px;
-}
-.atlas-title small,
-.atlas-header small,
-.level-label small {
-  display: block;
-  color: #8e826e;
-  font-size: 9px;
-  letter-spacing: .11em;
-}
-.atlas-title strong { display: block; margin-top: 3px; color: #ded3bd; }
-.category-button {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 34px 1fr;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 0;
-  padding: 8px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #a79c88;
-  text-align: left;
-  cursor: pointer;
-}
-.category-button:hover { background: #17150f; border-color: #342e25; }
-.category-button.active { background: #241d14; border-color: #795932; color: #eadfc8; }
-.category-button span { min-width: 0; }
-.category-button b { display: block; font-size: 12px; }
-.category-button small { display: block; margin-top: 2px; color: #6f675b; font-size: 9px; }
-.atlas-content { min-width: 0; background: #15140f; }
-.atlas-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: flex-start;
-  padding: 16px 18px;
-  border-bottom: 1px solid #342f27;
-}
-.atlas-header h2 { margin: 2px 0 4px; color: #e4d9c3; font-size: 19px; }
-.atlas-header p { max-width: 600px; margin: 0; color: #978d7c; font-size: 12px; line-height: 1.45; }
-.atlas-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; color: #867c6b; font-size: 10px; }
-.atlas-legend .known { color: #9db38a; }
-.atlas-legend .special { color: #cba469; }
-.level-list { padding: 12px 14px 22px; }
-.discovery-level {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid #29251f;
-}
-.level-label {
-  padding: 8px 5px;
-  color: #7e7464;
-  text-align: center;
-}
-.level-label strong { display: block; margin-top: 2px; font-size: 22px; color: #b28b59; }
-.level-nodes {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
-  gap: 7px;
-}
-.atlas-node {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 52px 1fr;
-  align-items: center;
-  gap: 9px;
-  padding: 9px;
-  border: 1px solid #3a342b;
-  background: #11110e;
-  color: #aea391;
-  text-align: left;
-  cursor: pointer;
-}
-.atlas-node:hover { border-color: #665239; background: #191710; }
-.atlas-node.selected { border-color: #ad7740; background: #2a2116; box-shadow: inset 3px 0 #b77a3e; }
-.atlas-node.known { border-color: #46513f; }
-.atlas-node.researching { border-color: #9a7643; }
-.atlas-node.special { border-style: dashed; }
-.node-icon { position: relative; display: grid; place-items: center; }
-.node-icon span {
-  position: absolute;
-  right: 0;
-  bottom: -2px;
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid #504536;
-  background: #17140f;
-  color: #c9a46d;
-  font-size: 10px;
-}
-.node-copy { min-width: 0; }
-.node-copy strong { display: block; color: #ddd2bc; font-size: 12px; }
-.node-copy small { display: block; margin-top: 4px; color: #786f61; font-size: 9px; line-height: 1.3; }
-.atlas-empty { margin: 18px; padding: 18px; border: 1px dashed #4c4437; color: #8c8272; font-size: 12px; }
-@media (max-width: 820px) {
-  .atlas { grid-template-columns: 1fr; }
-  .atlas-sidebar {
-    display: flex;
-    gap: 5px;
-    overflow-x: auto;
-    border-right: 0;
-    border-bottom: 1px solid #342f27;
-  }
-  .atlas-title { display: none; }
-  .category-button { min-width: 145px; }
-  .atlas-header { display: block; }
-  .atlas-legend { justify-content: flex-start; margin-top: 10px; }
-}
+.discovery-atlas { min-width: 0; background: #15140f; color: #ddd0b8; }
+.tree-categories { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; border-bottom: 1px solid #3a342b; }
+.tree-categories button[aria-pressed="true"] { border-color: #ad7740; background: #302419; }
+.tree-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+.tree-tools span { flex: 1; font-size: 12px; color: #aaa08e; }
+.tree-tools output { min-width: 45px; text-align: center; }
+.tree-viewport { height: min(65vh, 720px); min-height: 360px; overflow: auto; cursor: grab; overscroll-behavior: contain; border-top: 1px solid #3a342b; }
+.tree-viewport:active { cursor: grabbing; }
+.tree-space { position: relative; }
+.tree-canvas { position: absolute; top: 0; left: 0; transform-origin: top left; }
+.tree-canvas svg { position: absolute; inset: 0; pointer-events: none; }
+.tree-canvas path { fill: none; stroke: #786342; stroke-width: 2; }
+.tree-canvas path.known { stroke: #769066; }
+.tree-node { position: absolute; width: 220px; min-height: 88px; display: flex; gap: 10px; align-items: center; text-align: left; padding: 12px; background: #181610; border: 1px solid #66543a; color: #ddd0b8; cursor: pointer; }
+.tree-node span { min-width: 0; }
+.tree-node strong, .tree-node small { display: block; }
+.tree-node small { margin-top: 5px; font-size: 11px; color: #b0a38e; }
+.tree-node.known { border-color: #70855f; }
+.tree-node.selected { outline: 2px solid #d7ad65; outline-offset: 2px; }
+.tree-node.researching { background: #342718; }
+.tree-node.special { border-style: dashed; }
+.tree-empty { padding: 30px; }
 </style>
